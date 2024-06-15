@@ -1,6 +1,6 @@
 
 # CEA
- 
+
 R package for contrastive eigen analysis.
 
 <!-- badges: start -->
@@ -29,7 +29,7 @@ devtools::install_github("YunhuiQi/CEA")
 
 ## Website
 
-Check the vignette at <https://yunhuiqi.github.io/CEA/>.
+Check the vignette at <https://yunhuiqistat.github.io/CEA/>.
 
 ## Introduction
 
