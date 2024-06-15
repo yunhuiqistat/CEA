@@ -1,0 +1,4 @@
+^inst/SavedData
+^inst/SavedFigures
+^.*\.Rproj$
+^\.Rproj\.user$

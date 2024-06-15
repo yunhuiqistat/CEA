@@ -1,0 +1,19 @@
+Package: CEA
+Type: Package
+Title: Contrastive Eigen-analysis
+Version: 0.1.0
+Author: Yunhui Qi
+Maintainer: Yunhui Qi <qyh@iastate.edu>
+Description: More about what it does (maybe more than one line)
+    Use four spaces when indenting paragraphs within the Description.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+Depends: 
+    R (>= 2.10)
