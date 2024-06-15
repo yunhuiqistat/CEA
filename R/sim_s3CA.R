@@ -18,58 +18,58 @@
 #' @return A data frame containing the estimation of regression coefficients from 3CA, treatment cross covariance analysis, and cPCA on one data type.
 #' @export
 #' @examples
-#' library(CEA)
-#' library(ggplot2)
-#' library(ggsci)
-#' library(ggh4x)
-#' library(tidyverse)
-#' n_candidates <- c(3000)
-#' AR_candidates <- c(0.5, 0.7, 0.9)
-#' p_candidates <- c(300, 350, 400)
-#' s_candidates <- c(5,10)
-#' results <- setNames(data.frame(matrix(ncol = 7, nrow = 0)),
-#'                     c("est_trt_cca", "est_ctst_cca", "est_ctst_pca", "eta_est",
-#'                       "Dimension", "AR","Sparsity"))
-#' for (n in n_candidates) {
-#'   for (AR in AR_candidates){
-#'     for (p in p_candidates) {
-#'       for (s in s_candidates) {
-#'         res <- scCCA_sim(nt = n, nc = n, p = p, q = p, s = s,
-#'                          lambda_t = c(6, 4, 2, 0), lambda_c = c(2, 0.2), eta = NULL,
-#'                          AR = AR, lm_sigma = 1, lm_beta = 1.5, repetition = 10)
-#'         rownames(res) <- NULL
-#'         res$Dimension <- p
-#'         res$AR <- AR
-#'         res$Sparsity <- s
-#'         results <- rbind(results, res)
-#'       }
-#'     }
-#'   }
-#' }
-#' knitr::kable(results, format = "markdown")
-#' plot_results <- pivot_longer(results, 1:3, names_to = "Type", values_to = "Estimation")
-#' plot_results$Analysis <- sub(".*?_", "", plot_results$Type)
-#' plot_results$Dimension <- paste("p=", plot_results$Dimension, sep = "")
-#' plot_results$AR <- paste("AR=", plot_results$AR, sep = "")
-#' plot_results$Analysis <- factor(plot_results$Analysis, labels = c("ContrastiveCCA", "ContrastivePCA", "TreatmentCCA"))
-#' plot_results$Sparsity <- paste("# of non-zero elements =", plot_results$Sparsity)
-#' sp_est_box <- ggplot(data = plot_results[plot_results$Sparsity != "# of non-zero elements = 5",])+
-#'   geom_boxplot(aes(x = factor(Analysis, levels=c("ContrastiveCCA", "ContrastivePCA", "TreatmentCCA"), labels=c("s3CA", "scPCA", "trtsCCA")), y = abs(Estimation), fill = Analysis), show.legend = FALSE)+
-#'   facet_nested(AR~Sparsity+Dimension)+
-#'   geom_hline(yintercept = 1.5, linetype = "dashed", color="red")+
-#'   scale_y_continuous(breaks = c( 0, 1.5))+
-#'   theme_bw()+
-#'   theme(
-#'     panel.grid = element_blank(),
-#'     strip.background = element_rect(fill = "lightblue", color = "black"),
-#'     strip.text = element_text(color = "black", face = "bold", size = 14),
-#'     text = element_text(size = 14),  # Adjust text size
-#'     axis.title = element_text(size = 16),  # Adjust axis title size
-#'     axis.text = element_text(size = 12)   # Adjust axis text size
-#'   )+
-#'   scale_fill_d3()+
-#'   labs(y = "Estimation of the coefficient in (3.1)",x="Analysis")
-#' print(sp_est_box)
+#' #library(CEA)
+#' #library(ggplot2)
+#' #library(ggsci)
+#' #library(ggh4x)
+#' #library(tidyverse)
+#' #n_candidates <- c(3000)
+#' #AR_candidates <- c(0.5, 0.7, 0.9)
+#' #p_candidates <- c(300, 350, 400)
+#' #s_candidates <- c(5,10)
+#' #results <- setNames(data.frame(matrix(ncol = 7, nrow = 0)),
+#' #                    c("est_trt_cca", "est_ctst_cca", "est_ctst_pca", "eta_est",
+#' #                      "Dimension", "AR","Sparsity"))
+#' #for (n in n_candidates) {
+#' #  for (AR in AR_candidates){
+#' #    for (p in p_candidates) {
+#' #      for (s in s_candidates) {
+#' #        res <- sim_s3CA(nt = n, nc = n, p = p, q = p, s = s,
+#' #                         lambda_t = c(6, 4, 2, 0), lambda_c = c(2, 0.2), eta = NULL,
+#' #                         AR = AR, lm_sigma = 1, lm_beta = 1.5, repetition = 10)
+#' #        rownames(res) <- NULL
+#' #        res$Dimension <- p
+#' #        res$AR <- AR
+#' #        res$Sparsity <- s
+#' #        results <- rbind(results, res)
+#' #      }
+#' #    }
+#' #  }
+#' #}
+#' #knitr::kable(results, format = "markdown")
+#' #plot_results <- pivot_longer(results, 1:3, names_to = "Type", values_to = "Estimation")
+#' #plot_results$Analysis <- sub(".*?_", "", plot_results$Type)
+#' #plot_results$Dimension <- paste("p=", plot_results$Dimension, sep = "")
+#' #plot_results$AR <- paste("AR=", plot_results$AR, sep = "")
+#' #plot_results$Analysis <- factor(plot_results$Analysis, labels = c("ContrastiveCCA", "ContrastivePCA", "TreatmentCCA"))
+#' #plot_results$Sparsity <- paste("# of non-zero elements =", plot_results$Sparsity)
+#' #sp_est_box <- ggplot(data = plot_results[plot_results$Sparsity != "# of non-zero elements = 5",])+
+#' #  geom_boxplot(aes(x = factor(Analysis, levels=c("ContrastiveCCA", "ContrastivePCA", "TreatmentCCA"), labels=c("s3CA", "scPCA", "trtsCCA")), y = abs(Estimation), fill = Analysis), show.legend = FALSE)+
+#' #  facet_nested(AR~Sparsity+Dimension)+
+#' #  geom_hline(yintercept = 1.5, linetype = "dashed", color="red")+
+#' #  scale_y_continuous(breaks = c( 0, 1.5))+
+#' #  theme_bw()+
+#' #  theme(
+#' #    panel.grid = element_blank(),
+#' #    strip.background = element_rect(fill = "lightblue", color = "black"),
+#' #    strip.text = element_text(color = "black", face = "bold", size = 14),
+#' #    text = element_text(size = 14),  # Adjust text size
+#' #    axis.title = element_text(size = 16),  # Adjust axis title size
+#' #    axis.text = element_text(size = 12)   # Adjust axis text size
+#' #  )+
+#' #  scale_fill_d3()+
+#' #  labs(y = "Estimation of the coefficient in (3.1)",x="Analysis")
+#' #print(sp_est_box)
 
 sim_s3CA <- function(nt, nc, p, q, s, AR,
                       lambda_t = c(3, 2, 1, 0), lambda_c = c(3, 2), eta = NULL,

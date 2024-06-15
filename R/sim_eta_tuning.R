@@ -86,7 +86,7 @@
 #' # average SE across candidate eta of the metric
 #' round(unlist(lapply(nuisance_ARI_repe_list, function(x){mean(apply(x,2,sd))})),3)
 #' round(unlist(lapply(silhouette_repe_list, function(x){mean(apply(x,2,sd))})),3)
-#' plot_df <- pivot_longer(results, 3:4, names_to = "Metric", values_to = "Values")
+#' plot_df <- pivot_longer(results[results$eta %in% seq(0.1,5,0.25),], 3:4, names_to = "Metric", values_to = "Values")
 #' plot_df$Interaction <- plot_df$beta_12
 #' plot_df$Interaction[plot_df$beta_12 == 10] <- "Interaction==0"
 #' plot_df$Interaction[plot_df$beta_12 == 11] <- "Interaction==1"

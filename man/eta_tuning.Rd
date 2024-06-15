@@ -38,3 +38,9 @@ A list containing selected value of \eqn{\eta}  \code{eta_opt}, the vector of AR
 \description{
 Select \eqn{\eta} for subgroup identification by cPCA or scPCA
 }
+\examples{
+library(CEA)
+data(intro)
+eta_range <- seq(0.1, 5, 0.05)
+eta_opt <- eta_tuning(Xt = intro$cPCA$Xt, Xc = intro$cPCA$Xc, eta_range = eta_range, plot = TRUE, sparse_trt = NULL, sparse_ctst = NULL)$eta_opt
+}

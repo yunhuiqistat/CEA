@@ -38,3 +38,10 @@ A list containing contrastive SVD object \code{CCA_ctst} including singular valu
 \description{
 This function performs contrastive cross covariance/correlation analysis (3CA) or sparse contrastive cross covariance/correlation (s3CA), in comparison, also perform treatment/control group only (sparse) cross covariance analysis.
 }
+\examples{
+library(CEA)
+data(intro)
+res_3CA <- cCCA(Xc = intro$cCCA$Xc, Yc = intro$cCCA$Yc,
+Xt = intro$cCCA$Xt, Yt = intro$cCCA$Yt, eta  = NULL,
+sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
+}

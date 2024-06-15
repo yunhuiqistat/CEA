@@ -10,7 +10,10 @@ vignette: >
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.width = 10,
+  fig.height = 10,
+  out.width = "100%"
 )
 ```
 
@@ -649,7 +652,7 @@ print(p_s3CA)
 
 ## 1. Real data application of scPCA on Barley data.
 
-```{r barley data scPCA}
+```{r barley data scPCA,message=FALSE,warning=FALSE}
 data("barley")
 X <- log(barley$data + 1)
 
@@ -827,7 +830,8 @@ p_man_ctst_pval <- ggplot(data = ctst_pval_df)+
         axis.title = element_text(size = 16),  # Adjust axis title size
         axis.text = element_text(size = 12))+
   scale_color_aaas()
-
+print(p_man_ctst_pval)
+print(p_man_trt_pval)
 # ggsave("../inst/SavedFigures/Barley_Ut1_pval.pdf", p_man_trt_pval, width = 10, height = 5)
 # ggsave("../inst/SavedFigures/Barley_cU1_pval.pdf", p_man_ctst_pval, width = 10, height = 5)
 ```
@@ -899,6 +903,7 @@ p_scree <- ggplot(data = data.frame(Component = 1:Kmax, Variation = CCA_ctst$d/s
         axis.title = element_text(size = 16),  # Adjust axis title size
         axis.text = element_text(size = 12)
       )
+print(p_scree)
 # ggsave("../inst/SavedFigures/COVID_scree.pdf", plot = p_scree, width = 5, height = 4)
 
 
@@ -925,7 +930,7 @@ p_disc <- ggplot(data = cor_disc) +
       )+
   scale_color_aaas()
 # ggsave("../inst/SavedFigures/COVID_disc.pdf", plot = p_disc, width = 6, height = 5)
-
+print(p_disc)
 
 
 # 4.3. score scatter nuisance removal
@@ -996,6 +1001,7 @@ p_reg_c <- ggplot(data = data.frame(df_score_c[, c("CCcY", "icu",interested_y)])
 
 p_score <- ggarrange(p_reg_t, p_reg_c, p_reg, common.legend = T, 
                      legend = "bottom", nrow=1, align = "hv")
+print(p_score)
 # ggsave("../inst/SavedFigures/COVID_score.pdf", plot = p_score, width = 12, height = 6)
            
 
@@ -1011,7 +1017,7 @@ p_loading <- ggplot(data = data.frame(index = 1:ncol(Yt),
         axis.text = element_text(size = 12),
         legend.position = "right")+
   scale_color_d3()
-
+print(p_loading)
 
 # ggsave("../inst/SavedFigures/COVID_loadings.pdf", plot = p_loading, width = 5, height = 4)
 

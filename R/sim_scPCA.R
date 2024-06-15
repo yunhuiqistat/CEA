@@ -31,66 +31,66 @@
 #' @export
 #' @return A data frame containing the selected optimal eta, the four metrics values.
 #' @examples
-#' library(CEA)
-#' library(ggplot2)
-#' library(ggsci)
-#' library(ggh4x)
-#' library(tidyverse)
-#' set.seed(123)
-#' beta_12_candidates <- c(11,12)
-#' n_candidates <- c(100)
-#' p_candidates <- c(630, 830, 1230)
-#' eta_range <-  seq(0.1, 5, 0.05)
-#' results <- setNames(data.frame(matrix(ncol = 8, nrow = 0)),
-#'                     c("ARI_ctst_discovery", "ARI_ctst_nuisance",
-#'                       "ARI_trt_discovery", "ARI_trt_nuisance",
-#'                        "eta", "beta12", "SampleGroupSize", "Dimension"))
-#' for (beta_12 in beta_12_candidates) {
-#'   for (n in n_candidates) {
-#'     for(p in p_candidates){
-#'       res <- sim_scPCA (gnt = n, gnc = n, p = p, q = 10, t = 10,
-#'                        sigma_1t = 1, sigma_1c = 1, sigma_2t = 1,
-#'                         sigma_2c = 1, sigma_3t = 1, sigma_3c = 1,
-#'                         Sigma_t = NULL, Sigma_c = NULL,
-#'                         beta_11 = 7, beta_12 = beta_12, beta_21 = 3, beta_22 = 6,
-#'                         gamma_11 = -3, gamma_12 = 3, gamma_21 = -3, gamma_22 = 3,
-#'                         eta = eta_range, repetition = 10,
-#'                         save_plot = FALSE)
-#'       res$beta_12 <- beta_12
-#'       res$SampleGroupSize <- n
-#'       res$Dimension <- p + 20
-#'       results <- rbind(results, res)
-#'    }
-#'   }
-#' }
-#' plot_results <- pivot_longer(results, 1:4, names_to = "Type", values_to = "ARI")
-#' plot_results$Analysis <- sapply(plot_results$Type, function(x){strsplit(x,"_")[[1]][2]})
-#' plot_results$Factor <- sapply(plot_results$Type, function(x){strsplit(x,"_")[[1]][3]})
-#' plot_results$Analysis <- ifelse(plot_results$Analysis=="ctst","Contrastive","Treatment")
-#' plot_results$Factor <- ifelse(plot_results$Factor=="discovery","Interesting","Nuisance")
-#' plot_results$eta <- paste("eta==", plot_results$eta, sep = "")
-#' plot_results$beta_12 <- paste("beta[12]==", plot_results$beta_12, sep = "")
-#' plot_results$SampleGroupSize <- paste("n=", plot_results$SampleGroupSize, sep = "")
-#' plot_results$Dimension <- paste("Dimension==", plot_results$Dimension, sep = "")
-#' print(knitr::kable(plot_results %>% group_by(beta_12, Dimension,Factor, Analysis) %>%  summarise(Average_ARI = mean(ARI), SE_ARI = sd(ARI))), format = "markdown")
-#' plot_results <- plot_results %>% group_by(beta_12, Factor, Dimension, Analysis) %>%  summarise(Average_ARI = mean(ARI), SE_ARI = sd(ARI))
+#' #library(CEA)
+#' #library(ggplot2)
+#' #library(ggsci)
+#' #library(ggh4x)
+#' #library(tidyverse)
+#' #set.seed(123)
+#' #beta_12_candidates <- c(11,12)
+#' #n_candidates <- c(100)
+#' #p_candidates <- c(630, 830)
+#' #eta_range <-  seq(0.1, 5, 0.05)
+#' #results <- setNames(data.frame(matrix(ncol = 8, nrow = 0)),
+#' #                   c("ARI_ctst_discovery", "ARI_ctst_nuisance",
+#' #                   "ARI_trt_discovery", "ARI_trt_nuisance",
+#' #                       "eta", "beta12", "SampleGroupSize", "Dimension"))
+#' #for (beta_12 in beta_12_candidates) {
+#' #  for (n in n_candidates) {
+#' #    for(p in p_candidates){
+#' #      res <- sim_scPCA (gnt = n, gnc = n, p = p, q = 10, t = 10,
+#' #                       sigma_1t = 1, sigma_1c = 1, sigma_2t = 1,
+#' #                        sigma_2c = 1, sigma_3t = 1, sigma_3c = 1,
+#' #                        Sigma_t = NULL, Sigma_c = NULL,
+#' #                        beta_11 = 7, beta_12 = beta_12, beta_21 = 3, beta_22 = 6,
+#' #                        gamma_11 = -3, gamma_12 = 3, gamma_21 = -3, gamma_22 = 3,
+#' #                        eta = eta_range, repetition = 2,
+#' #                        save_plot = FALSE)
+#' #      res$beta_12 <- beta_12
+#' #      res$SampleGroupSize <- n
+#' #      res$Dimension <- p + 20
+#' #      results <- rbind(results, res)
+#' #   }
+#' #  }
+#' #}
+#' #plot_results <- pivot_longer(results, 1:4, names_to = "Type", values_to = "ARI")
+#' #plot_results$Analysis <- sapply(plot_results$Type, function(x){strsplit(x,"_")[[1]][2]})
+#' #plot_results$Factor <- sapply(plot_results$Type, function(x){strsplit(x,"_")[[1]][3]})
+#' #plot_results$Analysis <- ifelse(plot_results$Analysis=="ctst","Contrastive","Treatment")
+#' #plot_results$Factor <- ifelse(plot_results$Factor=="discovery","Interesting","Nuisance")
+#' #plot_results$eta <- paste("eta==", plot_results$eta, sep = "")
+#' #plot_results$beta_12 <- paste("beta[12]==", plot_results$beta_12, sep = "")
+#' #plot_results$SampleGroupSize <- paste("n=", plot_results$SampleGroupSize, sep = "")
+#' #plot_results$Dimension <- paste("Dimension==", plot_results$Dimension, sep = "")
+#' #print(knitr::kable(plot_results %>% group_by(beta_12, Dimension,Factor, Analysis) %>%  summarise(Average_ARI = mean(ARI), SE_ARI = sd(ARI))), format = "markdown")
+#' #plot_results <- plot_results %>% group_by(beta_12, Factor, Dimension, Analysis) %>%  summarise(Average_ARI = mean(ARI), SE_ARI = sd(ARI))
 #' ## barplot
-#' plot_results$Interaction <- ifelse(plot_results$beta_12=="beta[12]==11", "Interaction==1","Interaction==2")
-#' ggplot(plot_results)+
-#'   geom_bar(aes(x = Factor, fill = Analysis, y = Average_ARI+0.5), stat="identity", position ="dodge")+
-#'   facet_nested( ~ Interaction + factor(Dimension, levels = c("Dimension==650","Dimension==850","Dimension==1250")), labeller = label_parsed)+
-#'   labs(x = "", y="Average ARI")+
-#'   scale_y_continuous(breaks = c(0.5,1,1.5), limits = c(0,1.5), labels=c("0","0.5","1"))+
-#'   theme_bw()+
-#'   theme(
-#'     panel.grid = element_blank(),
-#'     strip.background = element_rect(fill = "lightblue", color = "black"),
-#'     strip.text = element_text(color = "black", face = "bold", size = 14),
-#'     text = element_text(size = 14),  # Adjust text size
-#'     axis.title = element_text(size = 16),  # Adjust axis title size
-#'     axis.text = element_text(size = 12),   # Adjust axis text size
-#'     legend.position = "bottom")+
-#'   scale_color_aaas()
+#' #plot_results$Interaction <- ifelse(plot_results$beta_12=="beta[12]==11", "Interaction==1","Interaction==2")
+#' #ggplot(plot_results)+
+#' #  geom_bar(aes(x = Factor, fill = Analysis, y = Average_ARI+0.5), stat="identity", position ="dodge")+
+#' #  facet_nested( ~ Interaction + factor(Dimension, levels = c("Dimension==650","Dimension==850","Dimension==1250")), labeller = label_parsed)+
+#' #  labs(x = "", y="Average ARI")+
+#' #  scale_y_continuous(breaks = c(0.5,1,1.5), limits = c(0,1.5), labels=c("0","0.5","1"))+
+#' #  theme_bw()+
+#' #  theme(
+#' #    panel.grid = element_blank(),
+#' #    strip.background = element_rect(fill = "lightblue", color = "black"),
+#' #    strip.text = element_text(color = "black", face = "bold", size = 14),
+#' #    text = element_text(size = 14),  # Adjust text size
+#' #    axis.title = element_text(size = 16),  # Adjust axis title size
+#' #    axis.text = element_text(size = 12),   # Adjust axis text size
+#' #    legend.position = "bottom")+
+#' #  scale_color_aaas()
 
 sim_scPCA <- function(gnt, gnc, p, q, t,
                       sigma_1t, sigma_2t, sigma_3t,

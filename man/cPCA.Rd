@@ -20,8 +20,13 @@ cPCA(Xt, Xc, eta, sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
 \item{sparse_ctrl}{parameter controlling the sparsity of control sparse PCA, if NULL, use cPCA, else use scPCA. For use of scPCA, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
 }
 \value{
-A list containing contrastive scores \code{cPC} and loadings \code{cU}, treatment scores \code{PCt} and loadings \code{Ut}, and control scores \code{PCc} and loadings \code{Uc}
+A list containing contrastive scores \code{cPC} and loadings \code{cU}, treatment scores \code{PCt} and loadings \code{Ut}, and control scores \code{PCc} and loadings \code{Uc}.
 }
 \description{
 This function performs contrastive PCA (cPCA) or sparse contrastive PCA (scPCA), in comparison, also perform treatment/control group only PCA/sPCA
+}
+\examples{
+library(CEA)
+data(intro)
+cpca_res <- cPCA(Xt = intro$cPCA$Xt, Xc = intro$cPCA$Xc, eta = 1.2, sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
 }

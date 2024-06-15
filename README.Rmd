@@ -109,7 +109,7 @@ cpca_res <- cPCA(Xt = intro$cPCA$Xt, Xc = intro$cPCA$Xc, eta = eta_opt, sparse_c
 
 3. We get the score plot of cPCA. In comparison, we also get the score plot of treatment PCA. Here, as in the paper, we have nuisance subgroup factor $C$ and interesting subgroup factor $B$. In the score plot, we see the first treatment score is associated with the nuisance subgroups, while the first contrastive score is associated with the interesting subgroups. This validates the removal of nuisance effect and discovery of hidden subgroups by cPCA.
 
-```{r cPCA usage score plot, fig.height=4, fig.width=4}
+```{r cPCA usage score plot, fig.height=5, fig.width=10}
 plot_data <- data.frame(cPC1 = cpca_res$cPC[,1], cPC2 = cpca_res$cPC[,2],
                         PC1 = cpca_res$PCt[,1], PC2 = cpca_res$PCt[,2],
                         intro$cPCA$covariates_t)
