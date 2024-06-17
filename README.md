@@ -24,7 +24,7 @@ You can install the development version of CEA from
 
 ``` r
 # install.packages("devtools")
-devtools::install_github("YunhuiQi/CEA")
+devtools::install_github("yunhuiqistat/CEA")
 ```
 
 ## Website
