@@ -38,21 +38,21 @@ CEA is an R package for contrastive eigen-analysis including contrastive PCA (cP
 
 In this vignette, we will use CEA package to reproduce the analysis in the original paper, including
 
-1. Simulation for $\eta$ tuning algorithm, generating Fig 2, Table 1, Fig S1.
+1. Simulation for $\eta$ tuning algorithm, generating Fig 2, Table 1, Fig S2.
 
-2. Simulation for cPCA, generating Fig 3a, Fig S2.
+2. Simulation for cPCA, generating Fig S1a, Fig S3.
 
-3. Simulation for scPCA, generating Fig 3b.
+3. Simulation for scPCA, generating Fig S1b.
 
-4. Simulation for robustness of $\eta$ tuning algorithm. Fig S3, Fig S4
+4. Simulation for robustness of $\eta$ tuning algorithm. Fig S4, Fig S5
 
-5. Simulation for 3CA, generating Fig 4.
+5. Simulation for 3CA, generating Fig 3.
 
-6. Simulation for s3CA, generating Fig 5 and Fig S5.
+6. Simulation for s3CA, generating Fig 4 and Fig S6.
 
-7. Real data application of scPCA generating Fig 6 and Fig 7, Fig S6 and Fig S7.
+7. Real data application of scPCA generating Fig S8 to Fig S11.
 
-8. Real data application of s3CA generating Fig 8 and Table 2, Fig S8.
+8. Real data application of s3CA generating Fig 5 and Table S1, Fig S7.
 
 # Simulation
 
@@ -168,7 +168,7 @@ print(p_eta)
 # ggsave("../inst/SavedFigures/sim_etaTuning.pdf", plot = p_eta, width = 9, height = 7, units = "in")
 ```
 
-#### Fig S1
+#### Fig S2
 
 ```{r simulation eta_tuning algorithm visualization (scatter plot singe dataset), eval=TRUE}
 # 3. Scatter plot of metrics versus candidate eta values for only 1 dataset (Fig S1)
@@ -207,7 +207,7 @@ print(p_eta)
 
 ## 2. Simulation for cPCA
 
-#### Fig S2: set save_plot = TRUE
+#### Fig S3: set save_plot = TRUE
 
 ```{r simulation for cPCA, eval = FALSE}
 beta_12_candidates <- c(11, 12)
@@ -241,7 +241,7 @@ for (beta_12 in beta_12_candidates) {
 
 ```
 
-#### Fig 3a 
+#### Fig S1a 
 
 ```{r simulation for cPCA visualization}
 load("../inst/SavedData/sim_cPCA.RData")
@@ -320,7 +320,7 @@ for (beta_12 in beta_12_candidates) {
 
 ```
 
-#### Fig 3b
+#### Fig S1b
 
 ```{r simulation for scPCA visualization}
 load("../inst/SavedData/sim_scPCA.RData")
@@ -415,7 +415,7 @@ eta_opt_res$SampleGroupSize <- paste("n==", eta_opt_res$SampleGroupSize, sep = "
 # save(results, eta_opt_res, nuisance_ARI_repe_list, silhouette_repe_list, eta_opt_repe_list, file = "../inst/SavedData/sim_etaTuning_Toep05.RData")
 ```
 
-#### Fig S3
+#### Fig S4
 
 ```{r simulation eta_tuning algorithm robustness visualization}
 load("../inst/SavedData/sim_etaTuning_Toep03.RData") # for averaged results
@@ -489,7 +489,7 @@ for (beta_12 in beta_12_candidates) {
 
 ```
 
-#### Fig S4a and Fig S4b
+#### Fig S5a and Fig S5b
 
 ```{r simulation for cPCA robustness visualization }
 load("../inst/SavedData/sim_cPCA_Toep03.RData")
@@ -553,7 +553,7 @@ for (n in n_candidates) {
 # save(results, file = "../inst/SavedData/sim_3CA.RData")
 ```
 
-#### Fig 4
+#### Fig 3
 
 ```{r simulation for 3CA visualization}
 load("../inst/SavedData/sim_3CA.RData")
@@ -579,7 +579,7 @@ p_3CA <- ggplot(data = plot_results)+
               # axis.text.x = element_text(angle = 45, hjust = 1)
             )+
             scale_fill_d3()+
-            labs(y = "Estimation of the coefficient in (3.1)",x="Analysis")
+            labs(y = "Estimation of the coefficient in (4.1)",x="Analysis")
 print(p_3CA)
 # ggsave("../inst/SavedFigures/sim_3CA.pdf", plot = p_3CA, width = 10, height = 10, units = "in")
 
@@ -615,7 +615,7 @@ for (n in n_candidates) {
 # save(results, file = "../inst/SavedData/sim_s3CA.RData")
 ```
 
-#### Fig 5 and Fig S5
+#### Fig 4 and Fig S6
 
 ```{r simulation for s3CA visualization}
 load("../inst/SavedData/sim_s3CA.RData")
@@ -626,7 +626,7 @@ plot_results$AR <- paste("AR=", plot_results$AR, sep = "")
 plot_results$Analysis <- factor(plot_results$Analysis, labels = c("ContrastiveCCA", "ContrastivePCA", "TreatmentCCA"))
 plot_results$Sparsity <- paste("# of non-zero elements =", plot_results$Sparsity)
 
-p_s3CA <- ggplot(data = plot_results[plot_results$Sparsity == "# of non-zero elements = 10",])+
+p_s3CA <- ggplot(data = plot_results[plot_results$Sparsity != "# of non-zero elements = 10",])+
       geom_boxplot(aes(x = factor(Analysis, levels=c("ContrastiveCCA", "ContrastivePCA", "TreatmentCCA"), labels=c("s3CA", "scPCA", "trtsCCA")), y = abs(Estimation), fill = Analysis), show.legend = FALSE)+
       facet_nested(AR~Sparsity+Dimension)+
       geom_hline(yintercept = 1.5, linetype = "dashed", color="red")+
@@ -641,7 +641,7 @@ p_s3CA <- ggplot(data = plot_results[plot_results$Sparsity == "# of non-zero ele
         axis.text = element_text(size = 12),   # Adjust axis text size
       )+
       scale_fill_d3()+
-      labs(y = "Estimation of the coefficient in (3.1)",x="Analysis")
+      labs(y = "Estimation of the coefficient in (4.1)",x="Analysis")
 print(p_s3CA)
 # ggsave("../inst/SavedFigures/sim_s3CA_s10.pdf", plot = p_s3CA, width = 10, height = 10, units = "in")
 # ggsave("../inst/SavedFigures/sim_s3CA_s5.pdf", plot = p_s3CA, width = 10, height = 10, units = "in")
