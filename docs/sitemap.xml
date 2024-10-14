@@ -13,6 +13,9 @@
     <loc>/articles/CEA.html</loc>
   </url>
   <url>
+    <loc>/articles/CEAvignette.html</loc>
+  </url>
+  <url>
     <loc>/articles/index.html</loc>
   </url>
   <url>
@@ -43,6 +46,9 @@
     <loc>/reference/eta_tuning.html</loc>
   </url>
   <url>
+    <loc>/reference/eta_tuning_general.html</loc>
+  </url>
+  <url>
     <loc>/reference/hello.html</loc>
   </url>
   <url>
@@ -58,13 +64,22 @@
     <loc>/reference/sim_3CA.html</loc>
   </url>
   <url>
+    <loc>/reference/sim_CSC.html</loc>
+  </url>
+  <url>
     <loc>/reference/sim_cPCA.html</loc>
+  </url>
+  <url>
+    <loc>/reference/sim_data_CSC.html</loc>
   </url>
   <url>
     <loc>/reference/sim_eta_tuning.html</loc>
   </url>
   <url>
     <loc>/reference/sim_s3CA.html</loc>
+  </url>
+  <url>
+    <loc>/reference/sim_sCSC.html</loc>
   </url>
   <url>
     <loc>/reference/sim_scPCA.html</loc>

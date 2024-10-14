@@ -4,29 +4,29 @@
 \alias{cPCA}
 \title{Contrastive PCA}
 \usage{
-cPCA(Xt, Xc, eta, sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
+cPCA(Xt, Xa, eta, sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
 }
 \arguments{
-\item{Xt}{data frame for treatment group, samples in rows, variables in columns.}
+\item{Xt}{data frame for target group, samples in rows, variables in columns.}
 
-\item{Xc}{data frame for control group, samples in rows, variables in columns.}
+\item{Xa}{data frame for ancillary group, samples in rows, variables in columns.}
 
-\item{eta}{tuning parameter controlling how much control variation should be contrasted off from the treatment variation. It can be theo \code{eta_opt} from function eta_tuning()}
+\item{eta}{tuning parameter controlling how much ancillary variation should be contrasted off from the target variation. It can be theo \code{eta_opt} from function eta_tuning_general()}
 
 \item{sparse_ctst}{parameter controlling the sparsity of scPCA, if NULL, use cPCA, else use scPCA. For use of scPCA, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
 
-\item{sparse_trt}{parameter controlling the sparsity of treatment sparse PCA, if NULL, use cPCA, else use scPCA. For use of scPCA, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
+\item{sparse_trt}{parameter controlling the sparsity of target sparse PCA, if NULL, use cPCA, else use scPCA. For use of scPCA, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
 
-\item{sparse_ctrl}{parameter controlling the sparsity of control sparse PCA, if NULL, use cPCA, else use scPCA. For use of scPCA, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
+\item{sparse_ctrl}{parameter controlling the sparsity of ancillary sparse PCA, if NULL, use cPCA, else use scPCA. For use of scPCA, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
 }
 \value{
-A list containing contrastive scores \code{cPC} and loadings \code{cU}, treatment scores \code{PCt} and loadings \code{Ut}, and control scores \code{PCc} and loadings \code{Uc}.
+A list containing contrastive scores \code{cPC} and loadings \code{cU}, target scores \code{PCt} and loadings \code{Ut}, and ancillary scores \code{PCa} and loadings \code{Ua}.
 }
 \description{
-This function performs contrastive PCA (cPCA) or sparse contrastive PCA (scPCA), in comparison, also perform treatment/control group only PCA/sPCA
+This function performs contrastive PCA (cPCA) or sparse contrastive PCA (scPCA), in comparison, also perform target/ancillary group only PCA/sPCA
 }
 \examples{
 library(CEA)
 data(intro)
-cpca_res <- cPCA(Xt = intro$cPCA$Xt, Xc = intro$cPCA$Xc, eta = 1.2, sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
+cpca_res <- cPCA(Xt = intro$cPCA$Xt, Xa = intro$cPCA$Xa, eta = 1.2, sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
 }

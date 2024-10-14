@@ -23,11 +23,18 @@
 
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav"><li>
-  <a href="../articles/CEA.html">Get started</a>
-</li>
-<li>
   <a href="../reference/index.html">Reference</a>
 </li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Articles
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu"><li>
+      <a href="../articles/CEAvignette.html">CEAvignette</a>
+    </li>
+  </ul></li>
       </ul><ul class="nav navbar-nav navbar-right"></ul></div><!--/.nav-collapse -->
   </div><!--/.container -->
 </div><!--/.navbar -->
@@ -49,13 +56,13 @@
     <div id="ref-usage">
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">sim_s3CA</span><span class="op">(</span></span>
 <span>  <span class="va">nt</span>,</span>
-<span>  <span class="va">nc</span>,</span>
+<span>  <span class="va">na</span>,</span>
 <span>  <span class="va">p</span>,</span>
 <span>  <span class="va">q</span>,</span>
 <span>  <span class="va">s</span>,</span>
 <span>  <span class="va">AR</span>,</span>
 <span>  lambda_t <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">2</span>, <span class="fl">1</span>, <span class="fl">0</span><span class="op">)</span>,</span>
-<span>  lambda_c <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">2</span><span class="op">)</span>,</span>
+<span>  lambda_a <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">2</span><span class="op">)</span>,</span>
 <span>  eta <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lm_sigma <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  lm_beta <span class="op">=</span> <span class="fl">1.5</span>,</span>
@@ -66,11 +73,11 @@
     <div id="arguments">
     <h2>Arguments</h2>
     <dl><dt>nt</dt>
-<dd><p>sample size of treatment group.</p></dd>
+<dd><p>sample size of target group.</p></dd>
 
 
-<dt>nc</dt>
-<dd><p>sample size of control group.</p></dd>
+<dt>na</dt>
+<dd><p>sample size of ancillary group.</p></dd>
 
 
 <dt>p</dt>
@@ -86,15 +93,15 @@
 
 
 <dt>lambda_t</dt>
-<dd><p>eigenvalues for U1V1, U2V2, U3V3 and U4V4 in treatment group.</p></dd>
+<dd><p>eigenvalues for U1V1, U2V2, U3V3 and U4V4 in target group.</p></dd>
 
 
-<dt>lambda_c</dt>
-<dd><p>eigenvalues for U1V1, U2V2 in control group.</p></dd>
+<dt>lambda_a</dt>
+<dd><p>eigenvalues for U1V1, U2V2 in ancillary group.</p></dd>
 
 
 <dt>eta</dt>
-<dd><p>the tuning parameter between treatment and control group, if eta = NULL, will use eta estimation.</p></dd>
+<dd><p>the tuning parameter between target and ancillary group, if eta = NULL, will use eta estimation.</p></dd>
 
 
 <dt>lm_sigma</dt>
@@ -110,14 +117,14 @@
 
 
 <dt>AR:</dt>
-<dd><p>values of the first off-diaonal element for toeplitz matrices which are set to be the error covariance matrix for Xt and Yt. The error covariances for Xc and Yc are set to be 0.1 times identity matrices.</p></dd>
+<dd><p>values of the first off-diaonal element for toeplitz matrices which are set to be the error covariance matrix for Xt and Yt. The error covariances for Xa and Ya are set to be 0.1 times identity matrices.</p></dd>
 
 </dl></div>
     <div id="value">
     <h2>Value</h2>
     
 
-<p>A data frame containing the estimation of regression coefficients from 3CA, treatment cross covariance analysis, and cPCA on one data type.</p>
+<p>A data frame containing the estimation of regression coefficients from 3CA, target cross covariance analysis, and cPCA on one data type.</p>
     </div>
 
     <div id="ref-examples">
@@ -138,7 +145,7 @@
 <span class="r-in"><span><span class="co">#  for (AR in AR_candidates){</span></span></span>
 <span class="r-in"><span><span class="co">#    for (p in p_candidates) {</span></span></span>
 <span class="r-in"><span><span class="co">#      for (s in s_candidates) {</span></span></span>
-<span class="r-in"><span><span class="co">#        res &lt;- sim_s3CA(nt = n, nc = n, p = p, q = p, s = s,</span></span></span>
+<span class="r-in"><span><span class="co">#        res &lt;- sim_s3CA(nt = n, na = n, p = p, q = p, s = s,</span></span></span>
 <span class="r-in"><span><span class="co">#                         lambda_t = c(6, 4, 2, 0), lambda_c = c(2, 0.2), eta = NULL,</span></span></span>
 <span class="r-in"><span><span class="co">#                         AR = AR, lm_sigma = 1, lm_beta = 1.5, repetition = 10)</span></span></span>
 <span class="r-in"><span><span class="co">#        rownames(res) &lt;- NULL</span></span></span>
@@ -155,10 +162,10 @@
 <span class="r-in"><span><span class="co">#plot_results$Analysis &lt;- sub(".*?_", "", plot_results$Type)</span></span></span>
 <span class="r-in"><span><span class="co">#plot_results$Dimension &lt;- paste("p=", plot_results$Dimension, sep = "")</span></span></span>
 <span class="r-in"><span><span class="co">#plot_results$AR &lt;- paste("AR=", plot_results$AR, sep = "")</span></span></span>
-<span class="r-in"><span><span class="co">#plot_results$Analysis &lt;- factor(plot_results$Analysis, labels = c("ContrastiveCCA", "ContrastivePCA", "TreatmentCCA"))</span></span></span>
+<span class="r-in"><span><span class="co">#plot_results$Analysis &lt;- factor(plot_results$Analysis, labels = c("ContrastiveCCA", "ContrastivePCA", "TargetCCA"))</span></span></span>
 <span class="r-in"><span><span class="co">#plot_results$Sparsity &lt;- paste("# of non-zero elements =", plot_results$Sparsity)</span></span></span>
 <span class="r-in"><span><span class="co">#sp_est_box &lt;- ggplot(data = plot_results[plot_results$Sparsity != "# of non-zero elements = 5",])+</span></span></span>
-<span class="r-in"><span><span class="co">#  geom_boxplot(aes(x = factor(Analysis, levels=c("ContrastiveCCA", "ContrastivePCA", "TreatmentCCA"), labels=c("s3CA", "scPCA", "trtsCCA")), y = abs(Estimation), fill = Analysis), show.legend = FALSE)+</span></span></span>
+<span class="r-in"><span><span class="co">#  geom_boxplot(aes(x = factor(Analysis, levels=c("ContrastiveCCA", "ContrastivePCA", "TargetCCA"), labels=c("s3CA", "scPCA", "trtsCCA")), y = abs(Estimation), fill = Analysis), show.legend = FALSE)+</span></span></span>
 <span class="r-in"><span><span class="co">#  facet_nested(AR~Sparsity+Dimension)+</span></span></span>
 <span class="r-in"><span><span class="co">#  geom_hline(yintercept = 1.5, linetype = "dashed", color="red")+</span></span></span>
 <span class="r-in"><span><span class="co">#  scale_y_continuous(breaks = c( 0, 1.5))+</span></span></span>

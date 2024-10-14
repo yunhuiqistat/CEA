@@ -48,21 +48,21 @@ library(ggsci)
 
 ### cPCA
 
-`eta_tuning()`
+`eta_tuning_general()`
 
 - Input
 
-  - `Xt` data frame for treatment group, samples in rows, variables in
+  - `Xt` data frame for target group, samples in rows, variables in
     columns. If PCA is applied to correlation matrix, Xt should be
     scaled and centered.  
-  - `Xc` data frame for control group, samples in rows, variables in
+  - `Xa` data frame for ancillary group, samples in rows, variables in
     columns. If cPCA is applied to correlation matrix, Xc should also be
     scaled and centered.  
   - `eta_range` a vector containing candidate eta range to be tuning
     from.  
   - `plot` a logical quantity indicating whether plot the ARI(nuisance)
     and silhouette score.  
-  - `sparse_trt` parameter controlling the sparsity of treatment sparse
+  - `sparse_trt` parameter controlling the sparsity of target sparse
     PCA, if NULL, use cPCA, else use scPCA. For use of scPCA, if vector,
     refer sumabss in PMD.cv from package PMA, if single number, refer
     sumabs in PMD in package PMA.  
@@ -70,8 +70,10 @@ library(ggsci)
     use cPCA, else use scPCA. For use of scPCA, if vector, refer sumabss
     in PMD.cv from package PMA, if single number, refer sumabs in PMD in
     package PMA.  
+  - `num_comps` if scPCA, specify the number of contrastive components
+    that will be estimated by PMD, default is 20.
   - `km_cluster` number showing number of nuisance clusters defined from
-    kmeans clustering on treatment PCA.
+    kmeans clustering on target PCA.
   - `ckm_cluster` number of interesting clusters defined from kmeans
     clustering on cPCA/scPCA.
 
@@ -79,44 +81,44 @@ library(ggsci)
 
   - A list containing selected value of $\eta$ `eta_opt`, the vector of
     ARI(nuisance) `nuisance_ARI` and the vector of Silhouette
-    `silhouette`.
+    `silhouette`, and the ggplot object `p`.
 
 `cPCA()`
 
 - Input
 
-  - `Xt` data frame for treatment group, samples in rows, variables in
+  - `Xt` data frame for target group, samples in rows, variables in
     columns.
-  - `Xc` data frame for control group, samples in rows, variables in
+  - `Xa` data frame for ancillary group, samples in rows, variables in
     columns.
-  - `eta` tuning parameter controlling how much control variation should
-    be contrasted off from the treatment variation. It can be theo
+  - `eta` tuning parameter controlling how much ancillary variation
+    should be contrasted off from the target variation. It can be theo
     `eta_opt` from function eta_tuning().
   - `sparse_ctst` parameter controlling the sparsity of scPCA, if NULL,
     use cPCA, else use scPCA. For use of scPCA, if vector, refer sumabss
     in PMD.cv from package PMA, if single number, refer sumabs in PMD in
     package PMA.  
-  - `sparse_trt` parameter controlling the sparsity of treatment sparse
+  - `sparse_trt` parameter controlling the sparsity of target sparse
     PCA, if NULL, use cPCA, else use scPCA. For use of scPCA, if vector,
     refer sumabss in PMD.cv from package PMA, if single number, refer
     sumabs in PMD in package PMA.  
-  - `sparse_ctrl` parameter controlling the sparsity of control sparse
+  - `sparse_ctrl` parameter controlling the sparsity of ancillary sparse
     PCA, if NULL, use cPCA, else use scPCA. For use of scPCA, if vector,
     refer sumabss in PMD.cv from package PMA, if single number, refer
     sumabs in PMD in package PMA.
 
 - Output
 
-  - A list containing contrastive scores `cPC` and loadings `cU`,
-    treatment scores `PCt` and loadings `Ut`, and control scores `PCc`
-    and loadings `Uc`.
+  - A list containing contrastive scores `cPC` and loadings `cU`, target
+    scores `PCt` and loadings `Ut`, and ancillary scores `PCa` and
+    loadings `Ua`.
 
 1.  We load the simulated data from the `data(intro)`, and use
     `eta_tuning()` to get optimal value of tuning parameter $\eta$.
 
 ``` r
 eta_range <- seq(0.1, 5, 0.05)
-eta_opt <- eta_tuning(Xt = intro$cPCA$Xt, Xc = intro$cPCA$Xc, eta_range = eta_range, plot = TRUE, sparse_trt = NULL, sparse_ctst = NULL)$eta_opt
+eta_opt <- eta_tuning_general(Xt = intro$cPCA$Xt, Xa = intro$cPCA$Xa, eta_range = eta_range, plot = TRUE, sparse_trt = NULL, sparse_ctst = NULL, num_comps = 20, km_cluster = 2, ckm_cluster = 2)$eta_opt
 ```
 
 <img src="man/figures/README-eta tuning for cPCA-1.png" style="display: block; margin: auto;" />
@@ -125,16 +127,16 @@ eta_opt <- eta_tuning(Xt = intro$cPCA$Xt, Xc = intro$cPCA$Xc, eta_range = eta_ra
 
 ``` r
 # speccify sparsity parameters to be NULL for cPCA
-cpca_res <- cPCA(Xt = intro$cPCA$Xt, Xc = intro$cPCA$Xc, eta = eta_opt, sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
+cpca_res <- cPCA(Xt = intro$cPCA$Xt, Xa = intro$cPCA$Xa, eta = eta_opt, sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
 ```
 
 3.  We get the score plot of cPCA. In comparison, we also get the score
-    plot of treatment PCA. Here, as in the paper, we have nuisance
-    subgroup factor $C$ and interesting subgroup factor $B$. In the
-    score plot, we see the first treatment score is associated with the
-    nuisance subgroups, while the first contrastive score is associated
-    with the interesting subgroups. This validates the removal of
-    nuisance effect and discovery of hidden subgroups by cPCA.
+    plot of target PCA. Here, as in the paper, we have nuisance subgroup
+    factor $C$ and interesting subgroup factor $B$. In the score plot,
+    we see the first target score is associated with the nuisance
+    subgroups, while the first contrastive score is associated with the
+    interesting subgroups. This validates the removal of nuisance effect
+    and discovery of hidden subgroups by cPCA.
 
 ``` r
 plot_data <- data.frame(cPC1 = cpca_res$cPC[,1], cPC2 = cpca_res$cPC[,2],
@@ -142,7 +144,7 @@ plot_data <- data.frame(cPC1 = cpca_res$cPC[,1], cPC2 = cpca_res$cPC[,2],
                         intro$cPCA$covariates_t)
 cP <- ggplot(plot_data)+
         geom_point(aes(x = cPC1, y = cPC2, color = B, shape = C))+
-        labs(title = "Contrastive", color = "Interesting \n subgroups", shape = "Nuisance \n subgroups")+
+        labs(title = "Contrastive", color = "Interesting \n subgroups", shape = "Nuisance \nsubgroups")+
         theme_bw()+
         theme(panel.grid = element_blank(),
               text = element_text(size = 14),  # Adjust text size
@@ -150,7 +152,7 @@ cP <- ggplot(plot_data)+
               axis.text = element_text(size = 12))
 Pt <- ggplot(plot_data)+
         geom_point(aes(x=PC1, y=PC2, color= B, shape = C), show.legend = FALSE)+
-        labs(title = "Treatment", color = "Interesting \n subgroups", shape = "Nuisance \n subgroups")+
+        labs(title = "Target", color = "Interesting \n subgroups", shape = "Nuisance \nsubgroups")+
         theme_bw()+
         theme(panel.grid = element_blank(),
               text = element_text(size = 14),  # Adjust text size
@@ -166,7 +168,7 @@ print(p_score)
 
 To illustrate the use of function `cPCA()` for sparse cPCA, we use the
 barley expression data example. For details of data processing and
-references, please refer to the paper and `data(barley)`.
+references, please refer to `data(barley)`.
 
 1.  We load the processed data from the `data(intro)`, and use assigned
     $\eta = 1$, we also specify the sparsity parameters to be 0.3.
@@ -174,20 +176,20 @@ references, please refer to the paper and `data(barley)`.
 ``` r
 set.seed(111)
 # specify the sparsity parameters for scPCA
-scPCA_res <- cPCA(Xt = intro$scPCA$Xt, Xc = intro$scPCA$Xc, eta = 1, sparse_ctst = 0.3, sparse_trt = 0.3, sparse_ctrl = 0.3)
+scPCA_res <- cPCA(Xt = intro$scPCA$Xt, Xa = intro$scPCA$Xa, eta = 1, sparse_ctst = 0.3, sparse_trt = 0.3, sparse_ctrl = 0.3)
 ```
 
 2.  We get the score plot of scPCA. In comparison, we also get the score
-    plot of treatment PCA. As described in the paper, Genotype effect is
+    plot of target PCA. As seen from the figure, Genotype effect is
     removed by scPCA, and the fungus subgroups is revealed by the first
     scPCA score.
 
 ``` r
 PCt <- scPCA_res$PCt
-PCc <- scPCA_res$PCc
+PCa <- scPCA_res$PCa
 cPC <- scPCA_res$cPC
 Ut <- scPCA_res$Ut
-Uc <- scPCA_res$Uc
+Ua <- scPCA_res$Ua
 cU <- scPCA_res$cU
 
 plot_data_t <- data.frame(cPC1 = cPC[,1], cPC2 = cPC[,2],
@@ -195,11 +197,11 @@ plot_data_t <- data.frame(cPC1 = cPC[,1], cPC2 = cPC[,2],
                           Genotype = intro$scPCA$covariates_t$Genotype,
                           Isolate = intro$scPCA$covariates_t$Isolate,
                           Time_bi = factor(intro$scPCA$covariates_t$Time_bi, levels = c("Early","Late")))
-plot_data_c <- data.frame(PC1 = PCc[,1], PC2 = PCc[,2], 
-                          Genotype = intro$scPCA$covariates_c$Genotype,
-                          Isolate = intro$scPCA$covariates_c$Isolate,
-                          Time = intro$scPCA$covariates_c$Time,
-                          Time_bi = factor(intro$scPCA$covariates_c$Time_bi, levels = c("Early","Late")))
+plot_data_a <- data.frame(PC1 = PCa[,1], PC2 = PCa[,2], 
+                          Genotype = intro$scPCA$covariates_a$Genotype,
+                          Isolate = intro$scPCA$covariates_a$Isolate,
+                          Time = intro$scPCA$covariates_a$Time,
+                          Time_bi = factor(intro$scPCA$covariates_a$Time_bi, levels = c("Early","Late")))
 
 cP <- ggplot(plot_data_t)+
   geom_point(aes(x = cPC1, y = cPC2, color = Isolate, shape = Genotype), size = 2)+
@@ -221,7 +223,7 @@ Pt <- ggplot(plot_data_t)+
         axis.text = element_text(size = 12),
         legend.position = "right")+
   scale_color_d3()
-Pc <- ggplot(plot_data_c)+
+Pa <- ggplot(plot_data_a)+
   geom_point(aes(x=PC1, y=PC2, color= Isolate, shape = Genotype), size = 2)+
   labs(title = "Early", color = "Fungus")+
   theme_bw()+
@@ -232,7 +234,7 @@ Pc <- ggplot(plot_data_c)+
         legend.position = "right")+
   scale_color_d3()
 
-p_score <- ggarrange(Pc, Pt, cP,  nrow=1, ncol=3,  common.legend = TRUE, legend = "bottom")
+p_score <- ggarrange(Pa, Pt, cP,  nrow=1, ncol=3,  common.legend = TRUE, legend = "bottom")
 print(p_score)
 ```
 
@@ -244,35 +246,35 @@ print(p_score)
 
 - Input
 
-  - `Xt` data frame for one data type in treatment group, samples in
-    rows, variables in columns. To conduct analysis based on cross
-    corrlation matrix, each feature should be centered and
-    standardized.  
-  - `Xc` data frame for one data type in control group, samples in rows,
+  - `Xt` data frame for one data type in target group, samples in rows,
     variables in columns. To conduct analysis based on cross corrlation
     matrix, each feature should be centered and standardized.  
-  - `Yt` data frame for another data type in treatment group, samples in
+  - `Xa` data frame for one data type in ancillary group, samples in
     rows, variables in columns. To conduct analysis based on cross
     corrlation matrix, each feature should be centered and
     standardized.  
-  - `Yc` data frame for another data type in control group, samples in
+  - `Yt` data frame for another data type in target group, samples in
     rows, variables in columns. To conduct analysis based on cross
     corrlation matrix, each feature should be centered and
     standardized.  
-  - `eta` tuning parameter controlling how much control variation should
-    be contrasted off from the treatment variation. If NULL, the
+  - `Ya` data frame for another data type in ancillary group, samples in
+    rows, variables in columns. To conduct analysis based on cross
+    corrlation matrix, each feature should be centered and
+    standardized.  
+  - `eta` tuning parameter controlling how much ancillary variation
+    should be contrasted off from the target variation. If NULL, the
     estimated eta introduced in paper will be used.
   - `sparse_ctst` parameter controlling the sparsity of s3CA, if NULL,
     use 3CA, else use s3CA. For use of s3CA, if vector, refer sumabss in
     PMD.cv from package PMA, if single number, refer sumabs in PMD in
     package PMA.  
-  - `sparse_trt` parameter controlling the sparsity of treatment sparse
+  - `sparse_trt` parameter controlling the sparsity of target sparse
     cross covariance/correlation analysis, if NULL, use cross
     covariance/correlation analysis, else use sparse cross
     covariance/correlation analysis. For use of sparse version, if
     vector, refer sumabss in PMD.cv from package PMA, if single number,
     refer sumabs in PMD in package PMA.  
-  - `sparse_ctrl` parameter controlling the sparsity of control sparse
+  - `sparse_ctrl` parameter controlling the sparsity of ancillary sparse
     cross covariance/correlation analysis, if NULL, use cross
     covariance/correlation analysis, else use sparse cross
     covariance/correlation analysis. For use of sparse version, if
@@ -282,9 +284,8 @@ print(p_score)
 - Output
 
   - A list containing contrastive SVD object `CCA_ctst` including
-    singular values `d`, loadings for X `u`, loadings for Y `v`;
-    treatment only SVD object `CCA_trt` and control only SVD object
-    `CCA_ctrl`.
+    singular values `d`, loadings for X `u`, loadings for Y `v`; target
+    only SVD object `CCA_trt` and ancillary only SVD object `CCA_ctrl`.
 
 1.  We load the simulated data from the `data(intro)`, and get the top
     estimated latent factor (score) from 3CA. As in the paper, we also
@@ -294,7 +295,7 @@ print(p_score)
     response on the score to recover the coefficient.
 
 ``` r
-res_3CA <- cCCA(Xc = intro$cCCA$Xc, Yc = intro$cCCA$Yc, 
+res_3CA <- cCCA(Xa = intro$cCCA$Xa, Ya = intro$cCCA$Ya, 
                 Xt = intro$cCCA$Xt, Yt = intro$cCCA$Yt, eta  = NULL,
                 sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
 #> 
@@ -322,7 +323,7 @@ processing and references, please refer to the paper and `data(covid)`.
     implemented to get the score plot.
 
 ``` r
-s3CA_res <- cCCA(Xc = intro$s3CA$Xc, Yc = intro$s3CA$Yc, 
+s3CA_res <- cCCA(Xa = intro$s3CA$Xa, Ya = intro$s3CA$Ya, 
                  Xt = intro$s3CA$Xt, Yt = intro$s3CA$Yt, eta  = 1,
                  sparse_ctst = seq(0.2, 1, len=20), 
                  sparse_trt = seq(0.2, 1, len=40), 
@@ -350,9 +351,9 @@ df_score_t <- data.frame(CCtX = intro$s3CA$Xt%*%as.matrix(CCA_trt$u[,1]),
                          CCtY = intro$s3CA$Yt%*%as.matrix(CCA_trt$v[,1]), 
                          intro$s3CA$covariates_t)
 
-df_score_c <- data.frame(CCcX = intro$s3CA$Xc%*%as.matrix(CCA_ctrl$u[,1]), 
-                         CCcY = intro$s3CA$Yc%*%as.matrix(CCA_ctrl$v[,1]), 
-                         intro$s3CA$covariates_c)
+df_score_a <- data.frame(CCcX = intro$s3CA$Xa%*%as.matrix(CCA_ctrl$u[,1]), 
+                         CCcY = intro$s3CA$Ya%*%as.matrix(CCA_ctrl$v[,1]), 
+                         intro$s3CA$covariates_a)
 
 interested_y <- "Platelet_K.uL"
 p_reg <- ggplot(data = data.frame(df_score[,c("cCCY","icu",interested_y)]),
@@ -379,7 +380,7 @@ p_reg_t <- ggplot(data = data.frame(df_score_t[, c("CCtY", "icu",interested_y)])
         axis.text = element_text(size = 12),
         legend.position = "right")+
   scale_color_d3()
-p_reg_c <- ggplot(data = data.frame(df_score_c[, c("CCcY", "icu",interested_y)]),
+p_reg_a <- ggplot(data = data.frame(df_score_a[, c("CCcY", "icu",interested_y)]),
                 aes_string(x = "CCcY",y = interested_y))+
   geom_point(aes_string(color = "icu" ))+ 
   geom_smooth(method = "lm", se = TRUE)+
@@ -392,7 +393,7 @@ p_reg_c <- ggplot(data = data.frame(df_score_c[, c("CCcY", "icu",interested_y)])
         legend.position = "right")+
   scale_color_d3()
 
-p_score <- ggarrange(p_reg_t, p_reg_c, p_reg, common.legend = T, 
+p_score <- ggarrange(p_reg_t, p_reg_a, p_reg, common.legend = T, 
                      legend = "bottom", nrow=1, align = "hv")
 print(p_score)
 ```

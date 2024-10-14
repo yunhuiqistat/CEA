@@ -23,11 +23,18 @@
 
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav"><li>
-  <a href="../articles/CEA.html">Get started</a>
-</li>
-<li>
   <a href="../reference/index.html">Reference</a>
 </li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Articles
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu"><li>
+      <a href="../articles/CEAvignette.html">CEAvignette</a>
+    </li>
+  </ul></li>
       </ul><ul class="nav navbar-nav navbar-right"></ul></div><!--/.nav-collapse -->
   </div><!--/.container -->
 </div><!--/.navbar -->
@@ -49,13 +56,13 @@
     <div id="ref-usage">
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">sim_3CA</span><span class="op">(</span></span>
 <span>  <span class="va">nt</span>,</span>
-<span>  <span class="va">nc</span>,</span>
+<span>  <span class="va">na</span>,</span>
 <span>  <span class="va">p</span>,</span>
 <span>  <span class="va">q</span>,</span>
 <span>  <span class="va">s</span>,</span>
 <span>  <span class="va">AR</span>,</span>
 <span>  lambda_t <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">2</span>, <span class="fl">1</span>, <span class="fl">0</span><span class="op">)</span>,</span>
-<span>  lambda_c <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">2</span><span class="op">)</span>,</span>
+<span>  lambda_a <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">2</span><span class="op">)</span>,</span>
 <span>  eta <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  lm_sigma <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  lm_beta <span class="op">=</span> <span class="fl">1.5</span>,</span>
@@ -66,11 +73,11 @@
     <div id="arguments">
     <h2>Arguments</h2>
     <dl><dt>nt</dt>
-<dd><p>sample size of treatment group.</p></dd>
+<dd><p>sample size of target group.</p></dd>
 
 
-<dt>nc</dt>
-<dd><p>sample size of control group.</p></dd>
+<dt>na</dt>
+<dd><p>sample size of ancillary group.</p></dd>
 
 
 <dt>p</dt>
@@ -86,15 +93,15 @@
 
 
 <dt>lambda_t</dt>
-<dd><p>eigenvalues for U1V1, U2V2, U3V3 and U4V4 in treatment group.</p></dd>
+<dd><p>eigenvalues for U1V1, U2V2, U3V3 and U4V4 in target group.</p></dd>
 
 
-<dt>lambda_c</dt>
-<dd><p>eigenvalues for U1V1, U2V2 in control group.</p></dd>
+<dt>lambda_a</dt>
+<dd><p>eigenvalues for U1V1, U2V2 in ancillary group.</p></dd>
 
 
 <dt>eta</dt>
-<dd><p>the tuning parameter between treatment and control group, if eta = NULL, will use eta estimation.</p></dd>
+<dd><p>the tuning parameter between target and ancillary group, if eta = NULL, will use eta estimation.</p></dd>
 
 
 <dt>lm_sigma</dt>
@@ -110,14 +117,14 @@
 
 
 <dt>AR:</dt>
-<dd><p>values of the first off-diagonal element for toeplitz matrices which are set to be the error covariance matrix for Xt and Yt. The error covariances for Xc and Yc are set to be identity matrices.</p></dd>
+<dd><p>values of the first off-diagonal element for toeplitz matrices which are set to be the error covariance matrix for Xt and Yt. The error covariances for Xa and Ya are set to be identity matrices.</p></dd>
 
 </dl></div>
     <div id="value">
     <h2>Value</h2>
     
 
-<p>A data frame containing the estimation of regression coefficients from 3CA, treatment cross covariance analysis, and cPCA on one data type.</p>
+<p>A data frame containing the estimation of regression coefficients from 3CA, target cross covariance analysis, and cPCA on one data type.</p>
     </div>
 
     <div id="ref-examples">
@@ -142,9 +149,9 @@
 <span class="r-in"><span>                      <span class="st">"SampleSize"</span>, <span class="st">"AR"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="kw">for</span> <span class="op">(</span><span class="va">n</span> <span class="kw">in</span> <span class="va">n_candidates</span><span class="op">)</span> <span class="op">{</span></span></span>
 <span class="r-in"><span>  <span class="kw">for</span> <span class="op">(</span><span class="va">AR</span> <span class="kw">in</span> <span class="va">AR_candidates</span><span class="op">)</span><span class="op">{</span></span></span>
-<span class="r-in"><span>    <span class="va">res</span> <span class="op">&lt;-</span> <span class="fu">sim_3CA</span><span class="op">(</span>nt <span class="op">=</span> <span class="va">n</span>, nc <span class="op">=</span> <span class="va">n</span>, p <span class="op">=</span> <span class="fl">40</span>, q <span class="op">=</span> <span class="fl">40</span>, s <span class="op">=</span> <span class="fl">10</span>, AR <span class="op">=</span> <span class="va">AR</span>,</span></span>
-<span class="r-in"><span>                    lambda_t <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">6</span>, <span class="fl">4</span>, <span class="fl">2</span>, <span class="fl">0</span><span class="op">)</span>, lambda_c <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">0.2</span><span class="op">)</span>, eta <span class="op">=</span> <span class="cn">NULL</span>,</span></span>
-<span class="r-in"><span>                    lm_sigma <span class="op">=</span> <span class="fl">1</span>, lm_beta <span class="op">=</span> <span class="fl">1.5</span>, repetition <span class="op">=</span> <span class="fl">20</span><span class="op">)</span></span></span>
+<span class="r-in"><span>    <span class="va">res</span> <span class="op">&lt;-</span> <span class="fu">sim_3CA</span><span class="op">(</span>nt <span class="op">=</span> <span class="va">n</span>, na <span class="op">=</span> <span class="va">n</span>, p <span class="op">=</span> <span class="fl">40</span>, q <span class="op">=</span> <span class="fl">40</span>, s <span class="op">=</span> <span class="fl">10</span>, AR <span class="op">=</span> <span class="va">AR</span>,</span></span>
+<span class="r-in"><span>                    lambda_t <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">6</span>, <span class="fl">4</span>, <span class="fl">2</span>, <span class="fl">0</span><span class="op">)</span>, lambda_a <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">0.2</span><span class="op">)</span>, eta <span class="op">=</span> <span class="cn">NULL</span>,</span></span>
+<span class="r-in"><span>                    lm_sigma <span class="op">=</span> <span class="fl">1</span>, lm_beta <span class="op">=</span> <span class="fl">1.5</span>, repetition <span class="op">=</span> <span class="fl">10</span><span class="op">)</span></span></span>
 <span class="r-in"><span>   <span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">rownames</a></span><span class="op">(</span><span class="va">res</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="cn">NULL</span></span></span>
 <span class="r-in"><span>   <span class="va">res</span><span class="op">$</span><span class="va">SampleSize</span> <span class="op">&lt;-</span> <span class="va">n</span></span></span>
 <span class="r-in"><span>   <span class="va">res</span><span class="op">$</span><span class="va">AR</span> <span class="op">&lt;-</span> <span class="va">AR</span></span></span>
@@ -156,193 +163,103 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> | est_trt_cca| est_ctst_cca| est_ctst_pca|  eta_est| SampleSize|  AR|</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> |-----------:|------------:|------------:|--------:|----------:|---:|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0379146|    1.4579052|    0.1340672| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0812774|    1.5306254|   -0.1718885| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0105014|   -1.4952609|   -0.2345134| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0837975|   -1.0734997|    0.3096464| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0646130|   -1.4777575|    0.4161123| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0890990|    1.5330278|   -0.0771576| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.1195105|   -0.6552736|    0.2648561| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.1015739|    1.5136975|    0.1693639| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0012861|    1.5379276|   -0.1908043| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0233518|   -1.4847168|   -0.0580977| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0346983|   -0.4361087|    0.2024241| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0976002|   -1.4755793|    0.3614221| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0416932|    1.1045420|   -0.2621324| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0353653|    0.5728086|    0.2436335| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0988580|    1.4050703|   -0.1160965| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0506387|    1.5185863|    0.0404421| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0616759|    1.4689354|   -0.6278312| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0282155|    0.0464683|   -0.3009609| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0433589|    1.5293319|   -0.2671556| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0035581|   -1.4593243|   -0.1681720| 2.407635|       1000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0853362|   -1.5083429|    0.5433757| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0142508|   -1.3889975|    0.3796307| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0189026|   -1.5196015|    0.4326528| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0767000|    1.4563777|    0.5733181| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0711815|   -1.4537579|    0.3433768| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1167698|    1.5081326|   -0.9085076| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0676034|    1.4699727|   -0.7097158| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0890186|   -1.5771686|    0.6884167| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0379330|   -1.3226225|   -0.7067708| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0076121|   -1.4868899|   -0.4208734| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0575649|   -1.4685742|    0.5482804| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0868708|    1.5416700|    0.5243516| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0034461|   -1.3672061|   -0.6069077| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0020531|   -1.2031833|   -0.4364496| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0900898|    1.3939285|    0.4402156| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0991659|    1.5146284|   -0.2259605| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0646403|   -1.4420143|   -0.3680821| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1525553|    1.3868429|    0.5880038| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0927674|    1.5072604|   -0.5762094| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0167673|    1.5720084|   -0.5749927| 2.902753|       1000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1578061|   -1.6062692|   -0.9053707| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1803068|    1.3816997|   -0.8299281| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1555740|   -1.4831919|    0.9532034| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1902105|    1.5302075|   -0.8726880| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1354818|    1.5094852|   -0.8703759| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1645875|    1.2538796|    0.8574720| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1748986|    1.2106703|    0.8291258| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0054272|   -1.2470966|    0.8547941| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0614770|   -1.4118099|   -0.9619607| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2350163|   -1.3581509|   -0.7938653| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.3330825|    1.4746512|   -0.8995744| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2374691|   -1.3219066|    0.8500469| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2475279|   -1.6803475|   -0.8617229| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2707497|    1.1190925|   -0.8768657| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0267704|   -1.7583886|   -0.8601164| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2544363|   -1.2138323|   -0.9294904| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2593824|   -1.2236817|   -0.8555694| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0257189|   -1.6393615|   -0.9369985| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1594184|   -1.2840627|   -0.9086393| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.4019807|    1.4456273|   -0.8520130| 2.908851|       1000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0027200|    1.4937337|   -0.1998061| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0028491|    1.4081106|   -0.0170806| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0266733|   -1.5400393|    0.0199841| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0055215|   -1.4873674|   -0.2768360| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0657416|    1.4626231|    0.0356274| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0082418|   -1.4123530|    0.0476501| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0115029|   -1.5069808|    0.3150229| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0236783|   -1.4657945|   -0.1285144| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0093765|    1.5193656|   -0.1470868| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0149196|    1.4950372|    0.2989599| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0050693|    1.4510059|   -0.0226078| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0579750|   -1.4444918|    0.1743487| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0273060|    1.4654332|    0.0113728| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0063831|    1.4839041|    0.2007935| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0269376|   -1.5126133|    0.1844960| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0407264|    1.5089017|   -0.0722307| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0366492|    1.4837217|   -0.2573242| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0145533|   -1.4760701|   -0.2634450| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0397921|   -1.4819669|    0.0303950| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0005224|    1.4710611|    0.0760726| 2.935415|       2000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0489505|   -1.4179563|   -0.6892677| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0531718|   -1.3588695|   -0.8327519| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0025248|   -1.5037597|    0.4770486| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0161302|    1.4569078|    0.6207680| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0728477|    1.3107878|    0.7458608| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0735413|   -1.4825338|   -0.4540412| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0321804|    1.5056532|    0.5738816| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0147324|   -1.5325793|    0.5874218| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0207349|    1.4511188|    0.6589018| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0365949|   -1.5529680|    0.4616774| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0869001|   -1.5307235|    0.6449479| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0633113|   -1.5045153|    0.7488885| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0147736|   -1.4146357|   -0.3696377| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0098974|    1.4903690|   -0.3229440| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0129311|   -1.4941955|   -0.4431405| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0287339|    1.5283305|    0.4935539| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0325127|   -1.4445649|    0.3758969| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0590855|   -1.4892827|   -0.4677220| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0454477|   -1.5060648|   -0.5100348| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0457218|    1.5342678|    0.2464225| 3.046285|       2000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0177143|   -1.4263292|   -0.9346107| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1043687|    1.3972156|   -0.8974639| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1831278|   -1.5939983|   -0.9183730| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0254204|    1.5145524|   -0.8445125| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1576219|   -1.3021413|   -0.8341990| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2680998|   -1.3232397|   -0.8488207| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1529700|   -1.4404813|   -0.8365464| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2754609|   -1.2051544|   -0.8588307| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0631570|    1.5296576|   -0.8649703| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.3055490|    1.5377595|    0.9060857| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1773729|   -1.6988599|   -0.8274686| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1006981|   -1.5234891|   -0.8778145| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.3033347|    1.2049361|    0.8560955| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2235485|    1.3450342|    0.8806196| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2138951|   -1.2768305|    0.9126720| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1368863|    1.4766586|    0.9067526| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1181419|    1.4763557|    0.8630427| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1686461|    1.6044183|   -0.8992636| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0981006|   -1.5000386|   -0.9116260| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1797683|   -1.3381206|   -0.8486976| 3.115144|       2000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0289923|    1.4621121|   -0.1080987| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0327909|   -1.5084908|    0.0008331| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0376722|   -1.4911810|   -0.1297589| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0271435|    1.5077216|    0.0943888| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0364582|    1.5095082|    0.1786814| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0620831|   -1.4907922|   -0.2250793| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0476218|   -1.4940017|   -0.1351126| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0065457|   -1.4766325|   -0.2118267| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0614009|   -1.5227133|    0.0018831| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0000179|    1.4533657|    0.0730384| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0287330|   -1.5263542|   -0.3147751| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0304508|    1.4770577|   -0.0917395| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0225046|    1.4840525|   -0.1504410| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0195995|   -1.4894230|   -0.3475041| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0066973|    1.4645338|   -0.1784534| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0879951|   -1.4719457|   -0.2601409| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0889336|    1.5280497|    0.2645649| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0308149|    1.4875641|   -0.0741231| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0402084|   -1.4477426|    0.1235136| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0587543|    1.4047856|   -0.1810356| 3.009851|       3000| 0.5|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0115435|    1.5171522|   -0.5847272| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0060831|   -1.4671585|   -0.6925026| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0399790|   -1.4559665|   -0.5807902| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0070689|   -1.4609070|   -0.6687946| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0334804|   -1.5246537|   -0.4476299| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0422683|    1.5190374|   -0.3493491| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0487836|   -1.5132385|   -0.6930599| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0845698|   -1.4698422|    0.3785557| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0148005|    1.5250105|    0.5759762| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0372483|   -1.5051242|    0.4549925| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0636235|   -1.4551747|   -0.7395929| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0894086|    1.5193848|   -0.5125890| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0691389|   -1.4520935|   -0.5584450| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0286261|   -1.5163347|    0.4677037| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0380831|   -1.5134002|   -0.6091203| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0194107|   -1.4893975|    0.4438380| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0741828|    1.5063360|    0.5533193| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0069795|    1.4602342|   -0.5046911| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0403070|   -1.5516735|    0.3506459| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0683298|   -1.4932716|   -0.5601409| 2.999462|       3000| 0.7|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0564936|    1.5146758|    0.8421267| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2039671|    1.3690615|    0.8940572| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1002576|    1.4308261|   -0.8800276| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1935631|   -1.5830537|    0.8612570| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2194803|    1.3618105|   -0.9138524| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0744783|    1.6413984|   -0.8801280| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2568591|    1.4064786|   -0.8929099| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1636650|   -1.3811443|    0.9283959| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0686721|    1.5178777|   -0.8915920| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0303782|    1.3686184|    0.9205034| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1954344|   -1.4010909|   -0.8742817| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1347909|   -1.3916632|   -0.9039485| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1558322|   -1.5331817|    0.9013609| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1541959|    1.3265972|    0.9085395| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1763529|    1.3542350|    0.9061234| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1517632|    1.6459413|   -0.8651139| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0251457|   -1.4662602|    0.8598717| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1018328|   -1.5419291|   -0.8898754| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1892125|    1.4407697|   -0.8898720| 2.761351|       3000| 0.9|</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1497489|   -1.3191886|   -0.8551179| 2.761351|       3000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0209802|   -1.2368525|    0.5172498| 2.854737|       1000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0872773|   -1.5477455|    0.1440968| 2.854737|       1000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0831667|    1.4447610|   -0.1533753| 2.854737|       1000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0738795|   -1.1795960|   -0.2965070| 2.854737|       1000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0543877|   -1.4864506|   -0.3513631| 2.854737|       1000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0600095|    1.4825414|   -0.0324646| 2.854737|       1000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0173687|   -1.4549040|    0.3120022| 2.854737|       1000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0315356|    1.4404601|    0.2694096| 2.854737|       1000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0365752|    1.5792594|   -0.1392153| 2.854737|       1000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0161191|   -1.4687494|   -0.1331256| 2.854737|       1000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0798216|    1.5708219|   -0.6195239| 2.728184|       1000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1164265|   -1.5610095|   -0.3625244| 2.728184|       1000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0383204|   -1.2872079|   -0.5514638| 2.728184|       1000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0571000|   -1.5219681|    0.5974695| 2.728184|       1000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0105410|    1.5407062|    0.3252949| 2.728184|       1000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0349539|   -1.5197670|   -0.5010113| 2.728184|       1000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0716059|    1.3991015|    0.5703977| 2.728184|       1000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0799960|    1.5380584|    0.6505025| 2.728184|       1000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0560144|    0.9088249|   -0.2525348| 2.728184|       1000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0409687|   -1.4531989|   -0.5405366| 2.728184|       1000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0346421|   -1.5213396|   -0.9452974| 2.654177|       1000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0182702|    1.5456862|    0.9374020| 2.654177|       1000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1695305|   -1.4627307|   -0.8878040| 2.654177|       1000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1062925|    1.4400354|   -0.9235746| 2.654177|       1000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.1238721|    1.4527998|    0.9605837| 2.654177|       1000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.4065415|   -1.1883317|   -0.9204522| 2.654177|       1000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0841756|   -1.4689642|   -0.9165333| 2.654177|       1000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1503872|   -1.4839971|    0.9168881| 2.654177|       1000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.3840636|   -1.0005857|   -0.8546113| 2.654177|       1000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.1148730|    1.2660071|    0.8925006| 2.654177|       1000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0420811|   -1.4406780|   -0.1199315| 2.838672|       2000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0194129|   -1.5226228|    0.2993090| 2.838672|       2000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0795081|   -1.5220773|   -0.1693790| 2.838672|       2000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0266783|    1.4734175|    0.0938433| 2.838672|       2000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0426689|   -1.4943247|    0.3448381| 2.838672|       2000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0519646|    1.5183777|   -0.2172934| 2.838672|       2000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0023701|   -1.4795410|   -0.1147134| 2.838672|       2000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0488138|   -1.5152319|    0.1808713| 2.838672|       2000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0143245|   -1.5266990|   -0.0095146| 2.838672|       2000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0359107|    1.4782000|   -0.0253732| 2.838672|       2000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0528358|    1.5087264|    0.5297875| 2.911442|       2000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0097773|   -1.5122299|    0.4736171| 2.911442|       2000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0607015|    1.5123010|   -0.5570080| 2.911442|       2000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0516401|    1.5209793|    0.6407362| 2.911442|       2000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.1396035|   -1.4925183|   -0.6255053| 2.911442|       2000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0087389|    1.5318106|    0.6684845| 2.911442|       2000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0963044|   -1.4707795|    0.8288044| 2.911442|       2000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0839428|   -1.5060820|    0.5360737| 2.911442|       2000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0558926|   -1.5186722|   -0.5579224| 2.911442|       2000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0011576|    1.5197478|    0.5644706| 2.911442|       2000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2168969|   -1.4525274|   -0.7986244| 3.140498|       2000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1139737|   -1.5642700|   -0.8315294| 3.140498|       2000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0689359|   -1.2806564|    0.8657951| 3.140498|       2000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2800237|    1.3111724|   -0.9038250| 3.140498|       2000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2006232|    1.5966807|   -0.8772336| 3.140498|       2000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.2553894|    1.6357384|   -0.8850604| 3.140498|       2000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0071597|   -1.4610667|    0.8661743| 3.140498|       2000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1926029|    1.5029287|   -0.8793229| 3.140498|       2000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0097945|    1.5984618|    0.8624837| 3.140498|       2000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0458833|   -1.5271445|   -0.8575783| 3.140498|       2000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0174932|   -1.4817961|   -0.2916827| 3.248190|       3000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0241474|   -1.4734643|    0.1079416| 3.248190|       3000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0012928|   -1.4463391|    0.2586431| 3.248190|       3000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0478385|    1.5184158|   -0.1419127| 3.248190|       3000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0357008|    1.4359166|   -0.1725259| 3.248190|       3000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0338858|    1.5016413|   -0.1191678| 3.248190|       3000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0354510|   -1.5023922|   -0.1596739| 3.248190|       3000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0403221|    1.4584074|   -0.1197204| 3.248190|       3000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0537640|    1.4728694|   -0.0723196| 3.248190|       3000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0383701|   -1.5171934|   -0.3166460| 3.248190|       3000| 0.5|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0078623|    1.5015570|    0.4435441| 3.080597|       3000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0653765|   -1.4769965|    0.5344918| 3.080597|       3000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0207389|   -1.5421979|   -0.5122555| 3.080597|       3000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0419626|    1.5227244|    0.5796413| 3.080597|       3000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0120630|    1.4454263|    0.5019686| 3.080597|       3000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0499190|    1.5077648|    0.4038469| 3.080597|       3000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0532790|    1.4981548|    0.4654006| 3.080597|       3000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |   0.0776233|    1.4954489|    0.4408770| 3.080597|       3000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0099585|   -1.4933759|    0.6710303| 3.080597|       3000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0520606|   -1.5264396|   -0.5741433| 3.080597|       3000| 0.7|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1940407|   -1.4995950|   -0.9095414| 3.199488|       3000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0766823|    1.4310812|    0.8334697| 3.199488|       3000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0542049|   -1.4557275|   -0.9076695| 3.199488|       3000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1188579|   -1.5551251|    0.8672030| 3.199488|       3000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0735668|    1.4450018|   -0.8417413| 3.199488|       3000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.3194606|    1.4843705|   -0.8563746| 3.199488|       3000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.0001785|   -1.4618534|    0.9210477| 3.199488|       3000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1841536|   -1.3012184|   -0.8681092| 3.199488|       3000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1383456|    1.5682527|   -0.8867300| 3.199488|       3000| 0.9|</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> |  -0.1965826|   -1.3672649|   -0.9243101| 3.199488|       3000| 0.9|</span>
 <span class="r-in"><span><span class="va">plot_results</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html" class="external-link">pivot_longer</a></span><span class="op">(</span><span class="va">results</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, names_to <span class="op">=</span> <span class="st">"Type"</span>, values_to <span class="op">=</span> <span class="st">"Estimation"</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">plot_results</span><span class="op">$</span><span class="va">Analysis</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">sub</a></span><span class="op">(</span><span class="st">".*?_"</span>, <span class="st">""</span>, <span class="va">plot_results</span><span class="op">$</span><span class="va">Type</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">plot_results</span><span class="op">$</span><span class="va">SampleSize</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="st">"n="</span>, <span class="va">plot_results</span><span class="op">$</span><span class="va">SampleSize</span>, sep <span class="op">=</span> <span class="st">""</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">plot_results</span><span class="op">$</span><span class="va">AR</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="st">"AR="</span>, <span class="va">plot_results</span><span class="op">$</span><span class="va">AR</span>, sep <span class="op">=</span> <span class="st">""</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="va">plot_results</span><span class="op">$</span><span class="va">Analysis</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">plot_results</span><span class="op">$</span><span class="va">Analysis</span>, labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ContrastiveCCA"</span>, <span class="st">"ContrastivePCA"</span>, <span class="st">"TreatmentCCA"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">plot_results</span><span class="op">$</span><span class="va">Analysis</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">plot_results</span><span class="op">$</span><span class="va">Analysis</span>, labels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ContrastiveCCA"</span>, <span class="st">"ContrastivePCA"</span>, <span class="st">"TargetCCA"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">p_est_box</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span>data <span class="op">=</span> <span class="va">plot_results</span><span class="op">)</span><span class="op">+</span></span></span>
-<span class="r-in"><span>     <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_boxplot.html" class="external-link">geom_boxplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">Analysis</span>, levels<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ContrastiveCCA"</span>, <span class="st">"ContrastivePCA"</span>, <span class="st">"TreatmentCCA"</span><span class="op">)</span>, labels<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"3CA"</span>, <span class="st">"cPCA"</span>, <span class="st">"trtCCA"</span><span class="op">)</span><span class="op">)</span>, y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">Estimation</span><span class="op">)</span>, fill <span class="op">=</span> <span class="va">Analysis</span><span class="op">)</span>, show.legend <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">+</span></span></span>
+<span class="r-in"><span>     <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_boxplot.html" class="external-link">geom_boxplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">Analysis</span>, levels<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ContrastiveCCA"</span>, <span class="st">"ContrastivePCA"</span>, <span class="st">"TargetCCA"</span><span class="op">)</span>, labels<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"3CA"</span>, <span class="st">"cPCA"</span>, <span class="st">"trtCCA"</span><span class="op">)</span><span class="op">)</span>, y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="va">Estimation</span><span class="op">)</span>, fill <span class="op">=</span> <span class="va">Analysis</span><span class="op">)</span>, show.legend <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">+</span></span></span>
 <span class="r-in"><span>     <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_grid.html" class="external-link">facet_grid</a></span><span class="op">(</span>cols <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/vars.html" class="external-link">vars</a></span><span class="op">(</span><span class="va">SampleSize</span><span class="op">)</span>, rows <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/vars.html" class="external-link">vars</a></span><span class="op">(</span><span class="va">AR</span><span class="op">)</span><span class="op">)</span><span class="op">+</span></span></span>
 <span class="r-in"><span>     <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html" class="external-link">geom_hline</a></span><span class="op">(</span>yintercept <span class="op">=</span> <span class="fl">1.5</span>, linetype <span class="op">=</span> <span class="st">"dashed"</span>, color<span class="op">=</span><span class="st">"red"</span><span class="op">)</span><span class="op">+</span></span></span>
 <span class="r-in"><span>     <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_continuous.html" class="external-link">scale_y_continuous</a></span><span class="op">(</span>breaks <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span> <span class="fl">0</span>, <span class="fl">1.5</span><span class="op">)</span><span class="op">)</span><span class="op">+</span></span></span>

@@ -1,39 +1,39 @@
 #' Contrastive Cross Covariance/Correlation Analysis
 #'
-#' This function performs contrastive cross covariance/correlation analysis (3CA) or sparse contrastive cross covariance/correlation (s3CA), in comparison, also perform treatment/control group only (sparse) cross covariance analysis.
+#' This function performs contrastive cross covariance/correlation analysis (3CA) or sparse contrastive cross covariance/correlation (s3CA), in comparison, also perform target/ancillary group only (sparse) cross covariance analysis.
 #' @import PMA
-#' @param Xt data frame for one data type in treatment group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.
-#' @param Xc data frame for one data type in control group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.
-#' @param Yt data frame for another data type in treatment group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.
-#' @param Yc data frame for another data type in control group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.
-#' @param eta tuning parameter controlling how much control variation should be contrasted off from the treatment variation. If NULL, the estimated eta introduced in paper will be used.
+#' @param Xt data frame for one data type in target group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.
+#' @param Xa data frame for one data type in ancillary group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.
+#' @param Yt data frame for another data type in target group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.
+#' @param Ya data frame for another data type in ancillary group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.
+#' @param eta tuning parameter controlling how much ancillary variation should be contrasted off from the target variation. If NULL, the estimated eta introduced in paper will be used.
 #' @param sparse_ctst parameter controlling the sparsity of s3CA, if NULL, use 3CA, else use s3CA. For use of s3CA, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.
-#' @param sparse_trt parameter controlling the sparsity of treatment sparse cross covariance/correlation analysis, if NULL, use cross covariance/correlation analysis, else use sparse cross covariance/correlation analysis. For use of sparse version, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.
-#' @param sparse_ctrl parameter controlling the sparsity of control sparse cross covariance/correlation analysis, if NULL, use cross covariance/correlation analysis, else use sparse cross covariance/correlation analysis. For use of sparse version, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.
+#' @param sparse_trt parameter controlling the sparsity of target sparse cross covariance/correlation analysis, if NULL, use cross covariance/correlation analysis, else use sparse cross covariance/correlation analysis. For use of sparse version, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.
+#' @param sparse_ctrl parameter controlling the sparsity of ancillary sparse cross covariance/correlation analysis, if NULL, use cross covariance/correlation analysis, else use sparse cross covariance/correlation analysis. For use of sparse version, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.
 #' @export
-#' @return A list containing contrastive SVD object \code{CCA_ctst} including singular values \code{d}, loadings for X \code{u}, loadings for Y \code{v}; treatment only SVD object \code{CCA_trt} and control only SVD object \code{CCA_ctrl} .
+#' @return A list containing contrastive SVD object \code{CCA_ctst} including singular values \code{d}, loadings for X \code{u}, loadings for Y \code{v}; target only SVD object \code{CCA_trt} and ancillary only SVD object \code{CCA_ctrl} .
 #' @examples
 #' library(CEA)
 #' data(intro)
-#' res_3CA <- cCCA(Xc = intro$cCCA$Xc, Yc = intro$cCCA$Yc,
+#' res_3CA <- cCCA(Xa = intro$cCCA$Xa, Ya = intro$cCCA$Ya,
 #' Xt = intro$cCCA$Xt, Yt = intro$cCCA$Yt, eta  = NULL,
 #' sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
 
-cCCA <- function(Xc, Yc, Xt, Yt, eta  = NULL,
+cCCA <- function(Xa, Ya, Xt, Yt, eta  = NULL,
                     sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL){
   set.seed(111)
   # empirical cross-covariance / cross-correlation
-  p <- ncol(Xc)
-  q <- ncol(Yc)
-  nc <- nrow(Xc)
+  p <- ncol(Xa)
+  q <- ncol(Ya)
+  na <- nrow(Xa)
   nt <- nrow(Xt)
 
   Xt <- scale(Xt, center = TRUE, scale = FALSE)
   Yt <- scale(Yt, center = TRUE, scale = FALSE)
-  Xc <- scale(Xc, center = TRUE, scale = FALSE)
-  Yc <- scale(Yc, center = TRUE, scale = FALSE)
+  Xa <- scale(Xa, center = TRUE, scale = FALSE)
+  Ya <- scale(Ya, center = TRUE, scale = FALSE)
 
-  ## Treatment group cross covariance analysis
+  ## target group cross covariance analysis
   if(is.null(sparse_trt)){ # non-sparse version
     CCA_trt <- svd(cov(Xt, Yt))
   }
@@ -52,13 +52,13 @@ cCCA <- function(Xc, Yc, Xt, Yt, eta  = NULL,
   }
 
 
-  ## Control group cross covariance analysis
+  ## ancillary group cross covariance analysis
   if(is.null(sparse_ctrl)){ # non-sparse version
-    CCA_ctrl <- svd(cov(Xc, Yc))
+    CCA_ctrl <- svd(cov(Xa, Ya))
   }
   else{ # sparse version
     if(length(sparse_ctrl) > 1){ # use cross validation to choose sparse parameters
-      cv_pmd_ctrl <- PMD.cv(cov(Xc, Yc), type="standard",sumabss = sparse_ctrl, center = FALSE, trace = FALSE)
+      cv_pmd_ctrl <- PMD.cv(cov(Xa, Ya), type="standard",sumabss = sparse_ctrl, center = FALSE, trace = FALSE)
       sumabs_ctrl <- cv_pmd_ctrl$bestsumabs
       v_init_ctrl <- cv_pmd_ctrl$v.init
     }
@@ -66,8 +66,8 @@ cCCA <- function(Xc, Yc, Xt, Yt, eta  = NULL,
       sumabs_ctrl <- sparse_ctrl
       v_init_ctrl <- NULL
     }
-    CCA_ctrl <- PMD(cov(Xc, Yc), type="standard", sumabs = sumabs_ctrl,
-                   K = min(c(p, q, nc-1)), v = v_init_ctrl, center = FALSE, trace = FALSE)
+    CCA_ctrl <- PMD(cov(Xa, Ya), type="standard", sumabs = sumabs_ctrl,
+                   K = min(c(p, q, na-1)), v = v_init_ctrl, center = FALSE, trace = FALSE)
   }
 
   # eta choice for contrastive analysis
@@ -80,7 +80,7 @@ cCCA <- function(Xc, Yc, Xt, Yt, eta  = NULL,
   }
 
   # (s)3CA
-  contrast <- cov(Xt, Yt) - eta * cov(Xc, Yc)
+  contrast <- cov(Xt, Yt) - eta * cov(Xa, Ya)
   if(is.null(sparse_ctst)){ # non-sparse version
     CCA_ctst <- svd(contrast)
   }

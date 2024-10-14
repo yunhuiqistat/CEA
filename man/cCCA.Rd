@@ -5,8 +5,8 @@
 \title{Contrastive Cross Covariance/Correlation Analysis}
 \usage{
 cCCA(
-  Xc,
-  Yc,
+  Xa,
+  Ya,
   Xt,
   Yt,
   eta = NULL,
@@ -16,32 +16,32 @@ cCCA(
 )
 }
 \arguments{
-\item{Xc}{data frame for one data type in control group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.}
+\item{Xa}{data frame for one data type in ancillary group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.}
 
-\item{Yc}{data frame for another data type in control group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.}
+\item{Ya}{data frame for another data type in ancillary group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.}
 
-\item{Xt}{data frame for one data type in treatment group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.}
+\item{Xt}{data frame for one data type in target group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.}
 
-\item{Yt}{data frame for another data type in treatment group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.}
+\item{Yt}{data frame for another data type in target group, samples in rows, variables in columns. To conduct analysis based on cross corrlation matrix, each feature should be centered and standardized.}
 
-\item{eta}{tuning parameter controlling how much control variation should be contrasted off from the treatment variation. If NULL, the estimated eta introduced in paper will be used.}
+\item{eta}{tuning parameter controlling how much ancillary variation should be contrasted off from the target variation. If NULL, the estimated eta introduced in paper will be used.}
 
 \item{sparse_ctst}{parameter controlling the sparsity of s3CA, if NULL, use 3CA, else use s3CA. For use of s3CA, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
 
-\item{sparse_trt}{parameter controlling the sparsity of treatment sparse cross covariance/correlation analysis, if NULL, use cross covariance/correlation analysis, else use sparse cross covariance/correlation analysis. For use of sparse version, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
+\item{sparse_trt}{parameter controlling the sparsity of target sparse cross covariance/correlation analysis, if NULL, use cross covariance/correlation analysis, else use sparse cross covariance/correlation analysis. For use of sparse version, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
 
-\item{sparse_ctrl}{parameter controlling the sparsity of control sparse cross covariance/correlation analysis, if NULL, use cross covariance/correlation analysis, else use sparse cross covariance/correlation analysis. For use of sparse version, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
+\item{sparse_ctrl}{parameter controlling the sparsity of ancillary sparse cross covariance/correlation analysis, if NULL, use cross covariance/correlation analysis, else use sparse cross covariance/correlation analysis. For use of sparse version, if vector, refer sumabss in PMD.cv from package PMA, if single number, refer sumabs in PMD in package PMA.}
 }
 \value{
-A list containing contrastive SVD object \code{CCA_ctst} including singular values \code{d}, loadings for X \code{u}, loadings for Y \code{v}; treatment only SVD object \code{CCA_trt} and control only SVD object \code{CCA_ctrl} .
+A list containing contrastive SVD object \code{CCA_ctst} including singular values \code{d}, loadings for X \code{u}, loadings for Y \code{v}; target only SVD object \code{CCA_trt} and ancillary only SVD object \code{CCA_ctrl} .
 }
 \description{
-This function performs contrastive cross covariance/correlation analysis (3CA) or sparse contrastive cross covariance/correlation (s3CA), in comparison, also perform treatment/control group only (sparse) cross covariance analysis.
+This function performs contrastive cross covariance/correlation analysis (3CA) or sparse contrastive cross covariance/correlation (s3CA), in comparison, also perform target/ancillary group only (sparse) cross covariance analysis.
 }
 \examples{
 library(CEA)
 data(intro)
-res_3CA <- cCCA(Xc = intro$cCCA$Xc, Yc = intro$cCCA$Yc,
+res_3CA <- cCCA(Xa = intro$cCCA$Xa, Ya = intro$cCCA$Ya,
 Xt = intro$cCCA$Xt, Yt = intro$cCCA$Yt, eta  = NULL,
 sparse_ctst = NULL, sparse_trt = NULL, sparse_ctrl = NULL)
 }

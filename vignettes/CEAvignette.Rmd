@@ -1,0 +1,531 @@
+---
+title: "CEAvignette"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{CEAvignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 10,
+  fig.height = 10,
+  out.width = "100%"
+)
+```
+
+```{r setup}
+library(CEA)
+library(ggplot2)
+library(ggsci)
+library(ggh4x)
+library(ggpubr)
+library(tidyverse)
+library(lme4)
+library(lmerTest)
+library(ComplexHeatmap)
+library(RColorBrewer)
+```
+
+
+# Introduction 
+
+CEA is an R package for contrastive eigen-analysis including contrastive PCA (cPCA) and its sparse version (scPCA), contrastive cross-covariance analysis (3CA) and its sparse version (s3CA).
+
+
+In this vignette, we will use CEA package to reproduce the analysis in the original paper, including
+
+1. Single dataset eta tuning example, generating Fig.2
+
+2. Simulation for contrastive spectral clustering, generating Table 2.
+
+3. Simulation for sparse contrastive spectral clustering, generating Table 3.
+
+4. Simulation for 3CA, generating Fig.3
+
+5. Simulation for s3CA, generating Fig.4 and Fig.S1
+
+6. Real data application of s3CA generating Fig.5 and Table S2, Fig S2.
+
+
+# Simulation
+
+## 1. Single dataset eta tuning example, generating Fig.2
+
+```{r, eta tuning example}
+eta_range <-  seq(0, 100, 0.2)
+Xt <- scale(sim_data_CSC$Xt, scale = FALSE)
+Xa <- scale(sim_data_CSC$Xa, scale = FALSE)
+meta_t <- sim_data_CSC$covariates_t
+eta_tuning_res <-  eta_tuning_general(Xt = Xt, Xa = Xa, eta_range = eta_range)
+eta_opt <- eta_tuning_res$eta_opt
+p_tuning <- eta_tuning_res$plot+scale_color_cosmic()+labs(title = expression("ARI/Silhouette vs candidate"~eta))
+
+
+meta_all <-  setNames(data.frame(matrix(ncol = ncol(meta_t)+3, nrow = 0)), c(colnames(meta_t), "cPC1","cPC2","eta"))
+for (eta_use in c(eta_opt, seq(from = min(eta_range), to = max(eta_range), length.out = 3))) {
+  meta_tmp <- meta_t
+  meta_tmp$cPC1 <-  Xt %*% eigen(cov(Xt)-eta_use*cov(Xa))$vectors[,1]
+  meta_tmp$cPC2 <-  Xt %*% eigen(cov(Xt)-eta_use*cov(Xa))$vectors[,2]
+  meta_tmp$eta <- paste0("eta==",eta_use)
+  meta_all <- rbind(meta_all, meta_tmp)
+}
+meta_all$eta <- factor(meta_all$eta, levels=c("eta==0","eta==1.6","eta==50","eta==100"))
+p_eta <- ggplot(meta_all)+
+            geom_point(aes(x = cPC1, y = cPC2, color = interesting, shape = nuisance))+
+            facet_wrap(vars(eta), labeller = label_parsed, scales= "free")+
+            theme_bw()+
+            scale_color_aaas()+
+            scale_shape_manual(values = c(1, 15))+
+            theme(
+              strip.background = element_rect(fill = "lightblue", color = "black"),
+              strip.text = element_text(color = "black", face = "bold", size = 14),
+              text = element_text(size = 14),  # Adjust text size
+              axis.title = element_text(size = 16),  # Adjust axis title size
+              axis.text = element_text(size = 12),   # Adjust axis text size
+              legend.position = "bottom")
+print(p_eta)
+# ggsave("../inst/SavedFigures/sim_etaTuningEg.pdf", 
+#        plot = ggarrange(p_tuning, p_eta, ncol = 2, widths = c(1,1.6), labels = "AUTO"), 
+#        width = 12, height = 6, units = "in")
+```
+
+## 2. Simulation for contrastive spectral clustering, generating Table 2 
+```{r  simulation cPCA, eval=FALSE}
+set.seed(111)
+mu2_candidates <- c(1, 2)
+p1_candidates <- c(5, 10)
+eta_range <-  seq(0.1, 50, 0.2)
+Sigmat_candidates <- c("Identity", "Toep(0.4)", "Toep(0.5)")
+results <- setNames(data.frame(matrix(ncol = 8, nrow = 0)),
+                     c("ARI_ctst_interesting", "ARI_ctst_nuisance",
+                       "ARI_trt_interesting", "ARI_trt_nuisance","eta",
+                        "mu2", "p1", "Sigmat"))
+for (mu2 in mu2_candidates) {
+  for (p1 in p1_candidates) {
+    for(Sigmat in Sigmat_candidates){
+        p2 <- 10
+        p <- p1+p2
+        Sigma_t <- case_when(Sigmat == "Identity" ~ diag(1, p),
+                             Sigmat == "Toep(0.4)" ~ toeplitz(0.4^(0:(p-1))),
+                             Sigmat == "Toep(0.5)" ~ toeplitz(0.5^(0:(p-1))))
+        res <- sim_CSC(n11 = 50, n12 = 25, n21 = 55, n22 = 30, m1tilde = 20, m2tilde = 30,
+                       mu1 = 5, mu2 = mu2, theta1 = -5, theta2 = 6, p1 = p1, p2 = p2,
+                       sigma_t = 1, sigma_a = 1,
+                       Sigma_t = Sigma_t, Sigma_a = NULL,
+                       eta = eta_range, repetition = 50, save_plot = FALSE)
+        res$mu2 <- mu2
+        res$mu <- abs(mu2-5)
+        res$p1 <- p1
+        res$Sigmat <- Sigmat
+        results <- rbind(results, res)
+      }
+    }
+  }
+# save(results, file = "../inst/SavedData/sim_cPCA.RData")
+```
+
+```{r  simulation cPCA visualization, eval=TRUE}
+load(file = "../inst/SavedData/sim_cPCA.RData")
+plot_results <- pivot_longer(results, 1:4, names_to = "Type", values_to = "ARI")
+plot_results$Analysis <- sapply(plot_results$Type, function(x){strsplit(x,"_")[[1]][2]})
+plot_results$Cluster <- sapply(plot_results$Type, function(x){strsplit(x,"_")[[1]][3]})
+plot_results$Analysis <- ifelse(plot_results$Analysis=="ctst","Contrastive","Target-only")
+plot_results$Cluster <- ifelse(plot_results$Cluster=="interesting","Interesting","Nuisance")
+plot_results$eta <- paste("eta==", plot_results$eta, sep = "")
+plot_results$mu <- paste("mu==", plot_results$mu, sep = "")
+plot_results$p1 <- paste("p[1]==", plot_results$p1, sep = "")
+plot_results <- plot_results %>% group_by(mu, p1, Sigmat, Analysis, Cluster) %>%
+  summarise(Average_ARI = mean(ARI), SE_ARI = sd(ARI), covarage_high = mean(ARI >= 0.9), covarage_low = mean(ARI <= 0.1))
+print(knitr::kable(plot_results, format = "markdown", digits = 3))
+p_cPCA <- ggplot(plot_results, aes(x = Cluster,  y = Average_ARI))+
+          geom_point(aes(color = Analysis), stat="identity", position ="dodge")+
+          geom_errorbar(aes(ymin = Average_ARI - SE_ARI, ymax = Average_ARI + SE_ARI), linewidth = 0.5) +
+          facet_nested(Sigmat ~ mu + p1, labeller = label_parsed)+
+          labs(x = "", y="Average ARI")+
+          theme_bw()+
+          theme(
+            panel.grid = element_blank(),
+            strip.background = element_rect(fill = "lightblue", color = "black"),
+            strip.text = element_text(color = "black", face = "bold", size = 14),
+            text = element_text(size = 14),  # Adjust text size
+            axis.title = element_text(size = 16),  # Adjust axis title size
+            axis.text = element_text(size = 12),   # Adjust axis text size
+            legend.position = "bottom"
+         )+
+         scale_color_aaas()
+print(p_cPCA)
+# ggsave("../inst/SavedFigures/sim_cPCA.pdf", p_cPCA, width = 6, height = 9, units = "in")
+```
+
+## 3. Simulation for sparse contrastive spectral clustering, generating Table 3
+
+```{r simulation scPCA, eval = FALSE}
+set.seed(111)
+mu2_candidates <- c(1, 2)
+p3_candidates <- c(100, 300)
+eta_range <-  seq(0.1, 10, 0.5)
+Sigmat_candidates <- c("Identity", "Toep(0.4)", "Toep(0.5)")
+results <- setNames(data.frame(matrix(ncol = 8, nrow = 0)),
+                     c("ARI_ctst_interesting", "ARI_ctst_nuisance",
+                     "ARI_trt_interesting", "ARI_trt_nuisance","eta",
+                      "mu2", "p3", "Sigmat"))
+for (mu2 in mu2_candidates) {
+  for (p3 in p3_candidates) {
+    for(Sigmat in Sigmat_candidates){
+      p1 <- 5
+      p2 <- 10
+      p <- p1+p2+p3
+      Sigma_t <- case_when(Sigmat == "Identity" ~ diag(1, p),
+                           Sigmat == "Toep(0.4)" ~ toeplitz(0.4^(0:(p-1))),
+                           Sigmat == "Toep(0.5)" ~ toeplitz(0.5^(0:(p-1))))
+      res <- sim_sCSC(n11 = 50, n12 = 25, n21 = 55, n22 = 30, m1tilde = 20, m2tilde = 30,
+                      mu1 = 5, mu2 = mu2, theta1 = -5, theta2 = 6, p1 = p1, p2 = p2, p3 = p3,
+                      sigma_t = 1, sigma_a = 1, Sigma_t = Sigma_t, Sigma_a = NULL,
+                      eta = eta_range, repetition = 50)
+       res$mu2 <- mu2
+       res$mu <- abs(mu2-5)
+       res$p3 <- p3
+       res$Sigmat <- Sigmat
+       results <- rbind(results, res)
+     }
+   }
+}
+# save(results, file = "../inst/SavedData/sim_scPCA.RData")
+```
+
+```{r  simlation scPCA visualization, eval=TRUE}
+load(file = "../inst/SavedData/sim_scPCA.RData")
+plot_results <- pivot_longer(results, 1:4, names_to = "Type", values_to = "ARI")
+plot_results$Analysis <- sapply(plot_results$Type, function(x){strsplit(x,"_")[[1]][2]})
+plot_results$Cluster <- sapply(plot_results$Type, function(x){strsplit(x,"_")[[1]][3]})
+plot_results$Analysis <- ifelse(plot_results$Analysis=="ctst","Contrastive","Target-only")
+plot_results$Cluster <- ifelse(plot_results$Cluster=="interesting","Interesting","Nuisance")
+plot_results$eta <- paste("eta==", plot_results$eta, sep = "")
+plot_results$mu <- paste("mu==", plot_results$mu, sep = "")
+plot_results$p3 <- paste("p[3]==", plot_results$p3, sep = "")
+plot_results <- plot_results %>% group_by(mu, p3, Sigmat, Analysis, Cluster) %>%
+  summarise(Average_ARI = mean(ARI), SE_ARI = sd(ARI), covarage_high = mean(ARI >= 0.9), covarage_low = mean(ARI <= 0.1))
+print(knitr::kable(plot_results, format = "markdown", digits = 3))
+p_scPCA <- ggplot(plot_results, aes(x = Cluster,  y = Average_ARI))+
+          geom_point(aes(color = Analysis), stat="identity", position ="dodge")+
+          geom_errorbar(aes(ymin = Average_ARI - SE_ARI, ymax = Average_ARI + SE_ARI), linewidth = 0.5) +
+          facet_nested(Sigmat ~ mu + p3, labeller = label_parsed)+
+          labs(x = "", y="Average ARI")+
+          theme_bw()+
+          theme(
+            panel.grid = element_blank(),
+            strip.background = element_rect(fill = "lightblue", color = "black"),
+            strip.text = element_text(color = "black", face = "bold", size = 14),
+            text = element_text(size = 14),  # Adjust text size
+            axis.title = element_text(size = 16),  # Adjust axis title size
+            axis.text = element_text(size = 12),   # Adjust axis text size
+            legend.position = "bottom"
+         )+
+         scale_color_aaas()
+print(p_scPCA)
+# ggsave("../inst/SavedFigures/sim_scPCA.pdf", p_scPCA, width = 6, height = 9, units = "in")
+```
+
+## 4. Simulation for 3CA, generating Fig.3
+
+```{r simulation for 3CA, eval=FALSE}
+n_candidates <- c(1000, 2000, 3000)
+AR_candidates <- c(0.5, 0.7, 0.9)
+results <- setNames(data.frame(matrix(ncol = 6, nrow = 0)), 
+                    c("est_trt_cca", "est_ctst_cca", "est_ctst_pca", "eta_est", 
+                      "SampleSize", "AR"))
+for (n in n_candidates) {
+  for (AR in AR_candidates){
+    res <- sim_3CA(nt = n, na = n, p = 40, q = 40, s = 10, AR = AR,
+                   lambda_t = c(6, 4, 2, 0), lambda_a = c(2, 0.2), eta = NULL,
+                   lm_sigma = 1, lm_beta = 1.5, repetition = 50)
+    rownames(res) <- NULL
+    res$SampleSize <- n
+    res$AR <- AR
+    results <- rbind(results, res)
+  }
+}
+# save(results, file = "../inst/SavedData/sim_3CA.RData")
+```
+
+```{r simulation for 3CA visualization}
+load("../inst/SavedData/sim_3CA.RData")
+plot_results <- pivot_longer(results, 1:3, names_to = "Type", values_to = "Estimation")
+plot_results$Analysis <- sub(".*?_", "", plot_results$Type)
+plot_results$SampleSize <- paste("n=", plot_results$SampleSize, sep = "")
+plot_results$AR <- paste("AR=", plot_results$AR, sep = "")
+plot_results$Analysis <- factor(plot_results$Analysis, labels = c("ContrastiveCCA", "ContrastivePCA", "TreatmentCCA"))
+## boxplot
+p_3CA <- ggplot(data = plot_results)+
+            geom_boxplot(aes(x = factor(Analysis, levels=c("ContrastiveCCA", "ContrastivePCA", "TreatmentCCA"), labels=c("3CA", "cPCA", "trtCCA")), y = abs(Estimation), fill = Analysis), show.legend = FALSE)+
+            facet_grid(cols = vars(SampleSize), rows = vars(AR))+
+            geom_hline(yintercept = 1.5, linetype = "dashed", color="red")+
+            scale_y_continuous(breaks = c( 0, 1.5))+
+            theme_bw()+
+            theme(
+              panel.grid = element_blank(),
+              strip.background = element_rect(fill = "lightblue", color = "black"),
+              strip.text = element_text(color = "black", face = "bold", size = 14),
+              text = element_text(size = 14),  # Adjust text size
+              axis.title = element_text(size = 16),  # Adjust axis title size
+              axis.text = element_text(size = 12),   # Adjust axis text size
+              # axis.text.x = element_text(angle = 45, hjust = 1)
+            )+
+            scale_fill_d3()+
+            labs(y = "Estimation of the coefficient in (6.2)",x="Analysis")
+print(p_3CA)
+# ggsave("../inst/SavedFigures/sim_3CA.pdf", plot = p_3CA, width = 10, height = 10, units = "in")
+
+```
+
+
+## 5. Simulation for s3CA, generating Fig.4 and Fig.S1
+
+```{r simulation for s3CA, eval=FALSE}
+n_candidates <- c(3000)
+AR_candidates <- c(0.5, 0.7, 0.9)
+p_candidates <- c(300, 350, 400)
+s_candidates <- c(5,10)
+results <- setNames(data.frame(matrix(ncol = 7, nrow = 0)), 
+                    c("est_trt_cca", "est_ctst_cca", "est_ctst_pca", "eta_est",
+                      "Dimension", "AR","Sparsity"))
+for (n in n_candidates) {
+  for (AR in AR_candidates){
+    for (p in p_candidates) {
+      for (s in s_candidates) {
+        res <- sim_s3CA(nt = n, na = n, p = p, q = p, s = s, 
+                        lambda_t = c(6, 4, 2, 0), lambda_a = c(2, 0.2), eta = NULL,
+                        AR = AR, lm_sigma = 1, lm_beta = 1.5, repetition = 50)
+        rownames(res) <- NULL
+        res$Dimension <- p
+        res$AR <- AR
+        res$Sparsity <- s
+        results <- rbind(results, res)
+      }
+    }
+  }
+}
+# save(results, file = "../inst/SavedData/sim_s3CA.RData")
+```
+
+```{r simulation for s3CA visualization}
+load("../inst/SavedData/sim_s3CA.RData")
+plot_results <- pivot_longer(results, 1:3, names_to = "Type", values_to = "Estimation")
+plot_results$Analysis <- sub(".*?_", "", plot_results$Type)
+plot_results$Dimension <- paste("p=", plot_results$Dimension, sep = "")
+plot_results$AR <- paste("AR=", plot_results$AR, sep = "")
+plot_results$Analysis <- factor(plot_results$Analysis, labels = c("ContrastiveCCA", "ContrastivePCA", "TargetCCA"))
+plot_results$Sparsity <- paste("# of non-zero elements =", plot_results$Sparsity)
+
+p_s3CA <- ggplot(data = plot_results[plot_results$Sparsity == "# of non-zero elements = 10",])+
+      geom_boxplot(aes(x = factor(Analysis, levels=c("ContrastiveCCA", "ContrastivePCA", "TargetCCA"), labels=c("s3CA", "scPCA", "trtsCCA")), y = abs(Estimation), fill = Analysis), show.legend = FALSE)+
+      facet_nested(AR~Sparsity+Dimension)+
+      geom_hline(yintercept = 1.5, linetype = "dashed", color="red")+
+      scale_y_continuous(breaks = c( 0, 1.5))+
+      theme_bw()+
+      theme(
+        panel.grid = element_blank(),
+        strip.background = element_rect(fill = "lightblue", color = "black"),
+        strip.text = element_text(color = "black", face = "bold", size = 14),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),   # Adjust axis text size
+      )+
+      scale_fill_d3()+
+      labs(y = "Estimation of the coefficient in (6.2)",x="Analysis")
+print(p_s3CA)
+# ggsave("../inst/SavedFigures/sim_s3CA_s10.pdf", plot = p_s3CA, width = 10, height = 10, units = "in")
+# ggsave("../inst/SavedFigures/sim_s3CA_s5.pdf", plot = p_s3CA, width = 10, height = 10, units = "in")
+```
+
+
+# Real data application of s3CA on COVID19 data.
+
+```{r covid data s3CA}
+data(covid)
+covariates <- covid$covariates
+mtb <- covid$mtb
+protein <- covid$protein
+
+# transformation
+mtb_log <- log(mtb + 1)
+protein_log <- log(protein + 1)
+
+#### 1. Choose correlation or covariance ####
+# Use correlation matrix or covariance matrix
+cormat <- TRUE
+# Use assigned eta and zta
+eta_assign <- 1 # or NULL to use eta estimation
+#### 2. Choose conditions ####
+# Take Covid as conditions 
+Xa <- scale(mtb_log[covariates$covid == "Non-Covid", ], scale = cormat)
+Ya <- scale(protein_log[covariates$covid == "Non-Covid",], scale = cormat)
+Xt <- scale(mtb_log[covariates$covid != "Non-Covid",], scale = cormat)
+Yt <- scale(protein_log[covariates$covid != "Non-Covid",], scale = cormat)
+
+p <- ncol(Xa)
+q <- ncol(Ya)
+na <- nrow(Xa)
+nt <- nrow(Xt)
+Kmax <- min(p, q, nt-1)
+covariates_a <- covariates[rownames(Xa),]
+covariates_t <- covariates[rownames(Xt),]
+
+
+#### 3. s3CA  ####
+
+res_s3CA <- cCCA(Xa = Xa, Ya = Ya, Xt = Xt, Yt = Yt, eta  = eta_assign,
+                sparse_ctst = seq(0.2, 1, len=20), sparse_trt = seq(0.2, 1, len=40), sparse_ctrl = seq(0.2, 1, len=40))
+CCA_ctst <- res_s3CA$CCA_ctst
+CCA_ctrl <- res_s3CA$CCA_ctrl
+CCA_trt <- res_s3CA$CCA_trt
+
+K_single <- K_t <- K_a <- 1
+cCCX <- Xt%*%as.matrix(CCA_ctst$u[,K_single])
+cCCY <- Yt%*%as.matrix(CCA_ctst$v[,K_single])
+
+df_score <- data.frame(cCCX = cCCX, cCCY = cCCY, covariates_t)
+
+df_score_t <- data.frame(CCtX = Xt%*%as.matrix(CCA_trt$u[,K_t]), 
+                         CCtY = Yt%*%as.matrix(CCA_trt$v[,K_t]), covariates_t)
+
+df_score_a <- data.frame(CCcX = Xa%*%as.matrix(CCA_ctrl$u[,K_a]), 
+                         CCcY = Ya%*%as.matrix(CCA_ctrl$v[,K_a]), covariates_a)
+
+
+#### 4. Visualization ####
+# 4.1. scree
+p_scree <- ggplot(data = data.frame(Component = 1:Kmax, Variation = CCA_ctst$d/sum(CCA_ctst$d)))+
+  geom_point(aes(x = Component, y = Variation))+
+  theme_bw()+ 
+  labs(y = "Proportion of explained variation")+
+  theme(
+        panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12)
+      )
+print(p_scree)
+# ggsave("../inst/SavedFigures/COVID_scree.pdf", plot = p_scree, width = 5, height = 4)
+
+
+# 4.2. covariance discrepancy
+K <- 30
+Wa <- Xa%*%CCA_ctst$u[,1:K]
+Za <- Ya%*%CCA_ctst$v[,1:K]
+Wt <- Xt%*%CCA_ctst$u[,1:K]
+Zt <- Yt%*%CCA_ctst$v[,1:K]
+
+cor_disc <- data.frame(Component = rep(1:K, 2),
+                       Cov = c(diag(cov(Wa, Za)), diag(cov(Wt, Zt))),
+                       Type = rep(c("Control", "Treatment"), each = K))
+p_disc <- ggplot(data = cor_disc) +
+  geom_line(aes(x = Component, y = Cov, color = Type))+
+  labs(y = "Cov(Xu, Yv)")+
+  theme_bw()+
+  theme(
+        panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom"
+      )+
+  scale_color_aaas()
+# ggsave("../inst/SavedFigures/COVID_disc.pdf", plot = p_disc, width = 6, height = 5)
+print(p_disc)
+
+
+# 4.3. score scatter nuisance removal
+nuisance <-  "icu"
+ARI_removal <- c(spec_clust(Ya%*%CCA_ctrl$v[,1], group = df_score_a[,nuisance]),
+                 spec_clust(Yt%*%CCA_trt$v[,1], group = df_score_t[,nuisance]),
+                 spec_clust(Yt%*%CCA_ctst$v[,1], group = df_score[,nuisance]))
+ARI_removal <- paste("ARI(ICU) = ", ARI_removal)
+names(ARI_removal) <- c("Control","Treatment","Contrastive")
+
+# 4.4. score scatter continuous interested regression
+interested_y <- "Platelet_K.uL"
+pval_sig <- c(summary(score_reg(x = data.frame(x = df_score[,"cCCY"]),
+                                y = df_score[,interested_y]))$coefficients[2,"Pr(>|t|)"],
+              summary(score_reg(x = data.frame(x = df_score_t[,"CCtY"]),
+                                y = df_score_t[,interested_y]))$coefficients[2,"Pr(>|t|)"],
+              summary(score_reg(data.frame(x = df_score_a[,"CCcY"]), 
+                                y = df_score_a[,interested_y]))$coefficients[2,"Pr(>|t|)"])
+pval_sig <- round(pval_sig, 4)
+pval_sig <- paste("P-value = ", pval_sig, sep = "")
+names(pval_sig) <- c("Contrastive","Treatment","Control")
+
+p_reg <- ggplot(data = data.frame(df_score[,c("cCCY","icu",interested_y)]),
+                aes_string(x = "cCCY",y = interested_y))+
+  geom_point(aes_string(color = "icu" ))+ 
+  geom_smooth(method = "lm", se = TRUE)+
+  geom_text(data = data.frame(a=c(3,3),b=c(700, 600),
+                              label=c(ARI_removal["Contrastive"], pval_sig["Contrastive"])), 
+            aes(x = a, y = b, label = label))+
+  theme_bw()+
+  labs(title = "Contrastive", x = "Yv", color = "")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+  scale_color_d3()
+p_reg_t <- ggplot(data = data.frame(df_score_t[, c("CCtY", "icu",interested_y)]),
+                aes_string(x = "CCtY",y = interested_y))+
+  geom_point(aes_string(color = "icu" ))+  
+  geom_smooth(method = "lm", se = TRUE)+
+  geom_text(data = data.frame(a=c(-10,-10),b=c(700, 600),
+                              label=c(ARI_removal["Treatment"], pval_sig["Treatment"])), 
+            aes(x = a, y = b, label = label))+
+  theme_bw()+
+  labs(title = "COVID", x = "Yv", color = "")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+  scale_color_d3()
+p_reg_a <- ggplot(data = data.frame(df_score_a[, c("CCcY", "icu",interested_y)]),
+                aes_string(x = "CCcY",y = interested_y))+
+  geom_point(aes_string(color = "icu" ))+ 
+  geom_smooth(method = "lm", se = TRUE)+
+  geom_text(data = data.frame(a=c(-15,-15),b=c(313, 267),
+                              label=c(ARI_removal["Control"], pval_sig["Control"])), 
+            aes(x = a, y = b, label = label))+
+  theme_bw()+
+  labs(title = "Non COVID", x = "Yv", color = "")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+  scale_color_d3()
+
+p_score <- ggarrange(p_reg_t, p_reg_a, p_reg, common.legend = T, 
+                     legend = "bottom", nrow=1, align = "hv")
+print(p_score)
+# ggsave("../inst/SavedFigures/COVID_score.pdf", plot = p_score, width = 12, height = 6)
+           
+
+# 4.5 loading plot
+p_loading <- ggplot(data = data.frame(index = 1:ncol(Yt),
+                                      Loadings = sort(abs(CCA_ctst$v[,1]))))+
+  geom_point(aes(x=index, y=Loadings))+
+  theme_bw()+
+  labs( x = "Proteins", y = "Absolute values of loadings")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+  scale_color_d3()
+print(p_loading)
+
+# ggsave("../inst/SavedFigures/COVID_loadings.pdf", plot = p_loading, width = 5, height = 4)
+
+```
+
