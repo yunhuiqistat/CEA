@@ -46,9 +46,9 @@ In this vignette, we will use CEA package to reproduce the analysis in the origi
 
 4. Simulation for 3CA, generating Fig.3
 
-5. Simulation for s3CA, generating Fig.4 and Fig.S1
+5. Simulation for s3CA, generating Fig.S1 and Fig.S2
 
-6. Real data application of s3CA generating Fig.5 and Table S2, Fig S2.
+6. Real data application of s3CA generating Fig.4 and Table S3, Fig S3.
 
 
 # Simulation
@@ -283,7 +283,7 @@ print(p_3CA)
 ```
 
 
-## 5. Simulation for s3CA, generating Fig.4 and Fig.S1
+## 5. Simulation for s3CA, generating Fig.S1 and Fig.S2
 
 ```{r simulation for s3CA, eval=FALSE}
 n_candidates <- c(3000)
@@ -527,5 +527,6 @@ print(p_loading)
 
 # ggsave("../inst/SavedFigures/COVID_loadings.pdf", plot = p_loading, width = 5, height = 4)
 
+print(colnames(Yt)[order(abs(CCA_ctst$v[,1]), decreasing = T)][1:11])
 ```
 
