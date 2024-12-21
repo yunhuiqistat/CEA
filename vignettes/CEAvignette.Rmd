@@ -513,15 +513,16 @@ print(p_score)
 
 # 4.5 loading plot
 p_loading <- ggplot(data = data.frame(index = 1:ncol(Yt),
-                                      Loadings = sort(abs(CCA_ctst$v[,1]))))+
-  geom_point(aes(x=index, y=Loadings))+
+                                      Loadings = sort(abs(CCA_ctst$v[,1])),
+                                      mark = rep(c("Others","Top 11"), c(ncol(Yt)-11,11))))+
+  geom_point(aes(x=index, y=Loadings, color = mark))+
   theme_bw()+
-  labs( x = "Proteins", y = "Absolute values of loadings")+
+  labs( x = "Proteins", y = "Absolute values of loadings", color = "")+
   theme(panel.grid = element_blank(),
         text = element_text(size = 14),  # Adjust text size
         axis.title = element_text(size = 16),  # Adjust axis title size
         axis.text = element_text(size = 12),
-        legend.position = "right")+
+        legend.position = "bottom")+
   scale_color_d3()
 print(p_loading)
 
