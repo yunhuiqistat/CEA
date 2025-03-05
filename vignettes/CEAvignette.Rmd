@@ -28,6 +28,7 @@ library(lme4)
 library(lmerTest)
 library(ComplexHeatmap)
 library(RColorBrewer)
+library(SingleCellExperiment)
 ```
 
 
@@ -343,7 +344,267 @@ print(p_s3CA)
 ```
 
 
-# Real data application of s3CA on COVID19 data.
+
+
+# Real data application of cPCA on Leukemia single-cell data.
+
+```{r Leukemia data cPCA}
+data("leukemia")
+healthy1 <- t(counts(leukemia$healthy1_sce))
+patient035 <- t(counts(leukemia$patient035_sce))
+pat035_class <- leukemia$patient035_sce$cell_prov %>% factor
+
+pat035_pca <- prcomp(patient035, center = TRUE, scale. = TRUE)
+pat035_pca_df <- data.frame(
+  PC1 = pat035_pca$x[, 1],
+  PC2 = pat035_pca$x[, 2],
+  class = factor(pat035_class, levels = c("pre_trans_035", "post_trans_035"),
+                 labels=c("Pre","Post")),
+  clusters = kmeans(pat035_pca$x[, 1], centers = 2)$cluster
+) 
+aricode::ARI(pat035_pca_df$class, pat035_pca_df$clusters)
+
+pat035_pca_p <- pat035_pca_df %>%
+  ggplot(aes(x = PC1, y = PC2)) +
+  geom_point(alpha = 0.5, size = 1) +
+  theme_bw()+
+  theme(legend.position = "right")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+  scale_color_d3()
+
+pat035_pca_p_wcs <- pat035_pca_df %>%
+  ggplot(aes(x = PC1, y = PC2, shape = class, color = factor(clusters))) +
+  geom_point(alpha = 0.5, size = 2) +
+  theme_bw()+
+  labs(color = "Clusters", shape = "Transplant")+
+  theme(legend.position = "right")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+  scale_color_d3()
+
+# ggsave("../inst/SavedFigures/Leukemia_PCA035.pdf", pat035_pca_p, width = 4, height = 4, unit = "in")
+# ggsave("../inst/SavedFigures/Leukemia_PCA035_wcs.pdf", pat035_pca_p_wcs, width = 5, height = 5, unit = "in")
+
+# cPCA with healthy 1
+Xt <- scale(as.matrix(patient035))
+Xa <- scale(as.matrix(healthy1))
+
+# eta_opt <- eta_tuning_general(Xa = Xa, Xt = Xt, eta_range = seq(1,25,1))
+eta_opt <- 3 # chosen by code above
+
+set.seed(111)
+# for speed, directly use eigen decompositon of contrast matrix, cPCA(Xt=Xt, Xa=Xa, eta=eta_opt) will give same results
+pat035_heal1_cpca <- eigen(cor(Xt)-eta_opt*cor(Xa))
+
+pat035_heal1_cpca_df <- data.frame(
+  cPC1 = Xt%*%pat035_heal1_cpca$vectors[,1],
+  cPC2 = Xt%*%pat035_heal1_cpca$vectors[,2],
+  class = factor(pat035_class, levels = c("pre_trans_035", "post_trans_035"),
+                 labels=c("Pre","Post"))) 
+
+pat035_heal1_cpca_df$clusters = kmeans(pat035_heal1_cpca_df[, c("cPC1")], centers = 2)$cluster
+aricode::ARI(pat035_heal1_cpca_df$class, pat035_heal1_cpca_df$clusters)
+
+
+
+pat035_heal1_cpca_p <- pat035_heal1_cpca_df %>%
+  ggplot(aes(x = cPC1, y = cPC2, colour = factor(clusters), shape = class)) +
+  geom_point(alpha = 0.5, size = 2) +
+  theme_bw()+
+  labs(color = "Clusters", shape = "Transplant") +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+  scale_color_d3()
+
+
+# ggsave("../inst/SavedFigures/Leukemia_cPCA0351.pdf", pat035_heal1_cpca_p, width = 5, height = 5, unit = "in")
+```
+
+```{r Leukemia data loading plot}
+loadings_df <- data.frame(
+  cPC_loadings = abs(pat035_heal1_cpca$vectors[,1]),
+  PC_loadings = abs(pat035_pca$rotation[,1])
+)
+
+loadings_df <- loadings_df[order(loadings_df$PC_loadings), ]
+loadings_df$item <- factor(seq_along(loadings_df$cPC_loadings))
+
+p_loadings <- ggplot(loadings_df, aes(x = item)) +
+    geom_bar(aes(y = cPC_loadings, fill = "Loading on cPC1"), stat = "identity", alpha = 0.5, position = "dodge") +
+    geom_bar(aes(y = PC_loadings, fill = "Loading on PC1"), stat = "identity", alpha = 0.5, position = "dodge") +
+  theme_bw()+
+    labs(y = "Loadings", fill = "", x= "Genes") +
+    scale_fill_manual(values = c("Loading on cPC1" = "red", "Loading on PC1" = "blue"))+ 
+    theme(axis.text.x = element_blank(),legend.position = "bottom")+
+  geom_hline(yintercept = c(0.05), color = "black", linetype ="dashed")
+print(p_loadings)
+# ggsave("../inst/SavedFigures/Leukemia_Loadings.pdf", p_loadings, width = 5, height = 5, unit = "in")
+
+p_c_loadings <- ggplot(loadings_df, aes(x = item)) +
+    geom_bar(aes(y = sort(cPC_loadings)), fill = "red", stat = "identity", alpha = 0.5, position = "dodge") +
+    theme_bw()+
+    labs(y = "Absolute values of loadings on cPC1", fill = "", x= "Genes") +
+    theme(axis.text.x = element_blank(),
+          panel.grid = element_blank(),
+          text = element_text(size = 14),  # Adjust text size
+          axis.title = element_text(size = 16),  # Adjust axis title size
+          axis.text = element_text(size = 12),
+          legend.position = "bottom")+
+  geom_hline(yintercept = c(0.05), color = "black", linetype ="dashed")
+print(p_c_loadings)
+# ggsave("../inst/SavedFigures/Leukemia_cPCAloadings.pdf", p_c_loadings, width = 5, height = 5, unit = "in")
+
+hist_c_loadings <-
+  ggplot(loadings_df)+
+  geom_histogram(aes(x=cPC_loadings, y=..count../sum(..count..)),
+                 fill = "pink", color = "black", alpha = 0.5) +
+  theme_bw()+
+  labs(y = "Proportions", x = "Absolute values of loadings on cPC1") +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")
+print(hist_c_loadings)
+# ggsave("../inst/SavedFigures/Leukemia_cPCAloadings_hist.pdf", hist_c_loadings, width = 5, height = 5, unit = "in")
+
+p_t_loadings <- ggplot(loadings_df, aes(x = item)) +
+    geom_bar(aes(y = (PC_loadings)), fill="skyblue", stat = "identity", alpha = 0.5, position = "dodge") +
+    theme_bw()+
+    labs(y = "Absolute values of loadings on PC1", fill = "", x= "Genes") +
+    theme(axis.text.x = element_blank(),legend.position = "bottom")+
+  geom_hline(yintercept = c(0.05), color = "black", linetype ="dashed")+
+    theme(axis.text.x = element_blank(),
+          panel.grid = element_blank(),
+          text = element_text(size = 14),  # Adjust text size
+          axis.title = element_text(size = 16),  # Adjust axis title size
+          axis.text = element_text(size = 12),
+          legend.position = "bottom")
+print(p_t_loadings)
+# ggsave("../inst/SavedFigures/Leukemia_PCAloadings.pdf", p_t_loadings, width = 5, height = 5, unit = "in")
+
+hist_t_loadings <-
+  ggplot(loadings_df)+
+  geom_histogram(aes(x=PC_loadings, y=..count../sum(..count..)),
+                 fill = "skyblue", color = "black", alpha = 0.5) +
+  theme_bw()+
+  labs(y = "Proportions", x = "Absolute values of loadings on PC1") +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")
+print(hist_t_loadings)
+# ggsave("../inst/SavedFigures/Leukemia_PCAloadings_hist.pdf", hist_t_loadings, width = 5, height = 5, unit = "in")
+
+p_moti1 <- ggarrange(pat035_pca_p_wcs, p_t_loadings, hist_t_loadings, common.legend = TRUE, legend="bottom", nrow = 1, labels = "AUTO", align = "h")
+ggsave("../inst/SavedFigures/Leukemia_moti.pdf", p_moti1, width = 13, height = 5, unit = "in")
+```
+
+```{r Leukemia data enrichment analysis }
+# GO enrichment analysis
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(enrichplot)
+
+genes_sel <- abs(pat035_heal1_cpca$vectors[,1]) > 0.05
+
+ensembl_ids <- colnames(Xt)[genes_sel]
+
+go_MF <- enrichGO(gene = ensembl_ids,
+                      OrgDb = org.Hs.eg.db,
+                      keyType = "ENSEMBL",       # Indicates Ensembl Gene IDs are being used
+                      ont = "MF",                # Ontology: BP (Biological Process), MF (Molecular Function), CC (Cellular Component)
+                      pAdjustMethod = "BH",      # p-value adjustment method
+                      pvalueCutoff = 0.05,       # Adjusted p-value cutoff
+                      qvalueCutoff = 0.2,
+                      readable = TRUE)
+go_CC <- enrichGO(gene = ensembl_ids,
+                      OrgDb = org.Hs.eg.db,
+                      keyType = "ENSEMBL",       
+                      ont = "CC",                
+                      pAdjustMethod = "BH",      
+                      pvalueCutoff = 0.05,      
+                      qvalueCutoff = 0.2,
+                      readable = TRUE)
+go_BP <- enrichGO(gene = ensembl_ids,
+                      OrgDb = org.Hs.eg.db,
+                      keyType = "ENSEMBL",       
+                      ont = "BP",                
+                      pAdjustMethod = "BH",      
+                      pvalueCutoff = 0.05,      
+                      qvalueCutoff = 0.2,
+                      readable = TRUE)
+
+p_go_MF <- dotplot(go_MF, showCategory = 20, x = "Count",title = "Top 20 Enriched Molecular Functions")
+p_go_BP <- dotplot(go_BP, showCategory = 20, x = "Count",title = "Top 20 Enriched Biological Processes")
+p_go_CC <- dotplot(go_CC, showCategory = 20, x = "Count",title = "Top 20 Enriched Cellular Components")
+# ggsave("../inst/SavedFigures/Leukemia_GOMF.pdf", p_go_MF, width = 6, height = 10, unit = "in")
+# ggsave("../inst/SavedFigures/Leukemia_GOBP.pdf", p_go_BP, width = 6, height = 10, unit = "in")
+# ggsave("../inst/SavedFigures/Leukemia_GOCC.pdf", p_go_CC, width = 6, height = 10, unit = "in")
+print(p_go_MF)
+print(p_go_BP)
+print(p_go_CC)
+
+
+# DO enrichment analysis
+# convert Ensembl IDs to Entrez IDs for compatibility
+entrez_ids <- bitr(ensembl_ids, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+do_enrichment <- DOSE::enrichDO(
+  gene          = entrez_ids$ENTREZID,
+  ont           = "HDO",  # Specify Disease Ontology
+  organism = "hsa",
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.2,
+  readable      = TRUE
+)
+
+
+p_do <- dotplot(do_enrichment, showCategory = 20, x = "Count",title = "Enriched Disease Ontology Terms")
+# ggsave("../inst/SavedFigures/Leukemia_DO.pdf", p_do, width = 6, height = 6, unit = "in")
+print(p_do)
+
+
+```
+
+
+
+```{r Leukemia data expression heatmap}
+Xt_sig_order <- Xt[order(pat035_heal1_cpca_df$clusters), genes_sel]
+annotation_col <- HeatmapAnnotation(Status=pat035_heal1_cpca_df[order(pat035_heal1_cpca_df$clusters), "class"], Status=list(nrow=1), col = list(Status = c("Pre-transplant" = "purple", "Post-transplant" = "yellow")))
+annotation_row <- rowAnnotation(
+  Loadings = pat035_heal1_cpca$vectors[genes_sel,1], 
+  col = list(Loadings = colorRamp2(c(-0.2, 0, 0.2), c("navy", "white", "orange"))),
+  show_annotation_name = FALSE, 
+  annotation_legend_param = list(direction = "horizontal"))
+ # pdf("../inst/SavedFigures/Leukemia_heatmap.pdf", width = 11, height= 6)
+heat0351_clusters <- Heatmap(t(Xt_sig_order), 
+                             heatmap_legend_param = list(direction = "horizontal"),
+                             cluster_columns = FALSE, cluster_rows = TRUE, 
+                             col = colorRamp2(c(-4, 0, 4), c("green", "white", "red")),
+                             name = "Standardized expression",
+                             column_split = ifelse(pat035_heal1_cpca_df[order(pat035_heal1_cpca_df$clusters), c("clusters")] == 1, "Contrastive cluster1", "Contrastive cluster2"),
+                             right_annotation = annotation_row,
+                             bottom_annotation = annotation_col,
+                             show_column_names = FALSE,
+                             show_row_names = FALSE)
+draw(heat0351_clusters, merge_legend = TRUE, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+ # dev.off()
+```
+
+# Real data application of s3CA on COVID19 multi-omics data.
 
 ```{r covid data s3CA}
 data(covid)
@@ -512,7 +773,7 @@ p_score <- ggarrange(p_reg_t, p_reg_a, p_reg, common.legend = T, labels = c("A",
                      legend = "bottom", nrow=1, align = "hv")
 print(p_score)
 # ggsave("../inst/SavedFigures/COVID_score.pdf", plot = p_score, width = 12, height = 6)
-           
+
 
 # 4.5 loading plot
 p_loading <- ggplot(data = data.frame(index = 1:ncol(Yt),
@@ -532,5 +793,421 @@ print(p_loading)
 # ggsave("../inst/SavedFigures/COVID_loadings.pdf", plot = p_loading, width = 5, height = 4)
 
 print(colnames(Yt)[order(abs(CCA_ctst$v[,1]), decreasing = T)][1:11])
+
+# 4.6 Score plot and comparison of loadings between covid and non-covid group for motivation
+p_score_t <- ggplot(data = data.frame(df_score_t[, c("CCtX", "CCtY", "icu")]),
+                aes_string(x = "CCtX",y = "CCtY", color = "icu"))+
+  geom_point()+  
+  theme_bw()+
+  labs(title = "", x = "First component with respect to metabolite",  
+       y = "First component with respect to protein",
+       color = "ICU")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 12),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+scale_color_aaas()
+p_score_a <- ggplot(data = data.frame(df_score_a[, c("CCcX", "CCcY", "icu")]),
+                aes_string(x = "CCcX",y = "CCcY", color = "icu"))+
+  geom_point()+  
+  theme_bw()+
+  labs(title = "", x = "First component with respect to metabolite",  
+       y = "First component with respect to protein",
+       color = "ICU")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 12),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+  scale_color_aaas()
+
+
+# ggsave("../inst/SavedFigures/COVID_covid_scoreXY.pdf", plot = p_score_t, width = 5, height = 5)
+# ggsave("../inst/SavedFigures/COVID_noncovid_scoreXY.pdf", plot = p_score_a, width = 5, height = 5)
+
+p_Yloading_ta_comp <- ggplot(data = data.frame(COVID = CCA_trt$v[,1], nonCOVID = CCA_ctrl$v[,1]),
+                          aes(x = COVID, y = nonCOVID))+
+  geom_point(color = "cyan2", alpha=0.5)+
+  theme_bw()+
+  annotate("text",x= 0.1, y= 0.1, label = paste0("Corr = ", round(cor(CCA_trt$v[,1], CCA_ctrl$v[,1]),4)))+
+  labs( x = "Loading of proteins from COVID group analysis", y = "Loading of proteins from non COVID group analysis")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 12),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")
+
+# ggsave("../inst/SavedFigures/COVID_Yloading_ta.pdf", plot = p_Yloading_ta_comp, width = 5, height = 5)
+
+p_Yloading_ta_bar <- ggplot(data = data.frame(COVID = CCA_trt$v[,1], nonCOVID = CCA_ctrl$v[,1], item = 1:ncol(Yt)),
+                          aes(x = item))+
+ geom_bar(aes(x=item, y = sort(abs(COVID))), fill = "tomato", position = "dodge", stat = "identity")+
+ geom_bar(aes(x=item, y = -abs(nonCOVID)[order(abs(COVID))]), position = "dodge", stat = "identity", fill= "steelblue1")+   theme_bw()+
+ annotate("text", x= 250, y= 0.1, label = "From COVID group analysis", color = "tomato")+
+ annotate("text",x= 250, y= -0.11, label = "From non COVID group analysis", color = "steelblue1")+
+ labs( x = "Proteins", y = "Absolute loadings of proteins")+
+ theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 12),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+               axis.text.x = element_blank(),
+        legend.position = "bottom")
+
+# ggsave("../inst/SavedFigures/COVID_Yloading_ta_bar.pdf", plot = p_Yloading_ta_bar, width = 5, height = 5)
+
+
+p_Xloading_ta_comp <- ggplot(data = data.frame(COVID = CCA_trt$u[,1], nonCOVID = CCA_ctrl$u[,1]),
+                             aes(x=COVID, y=nonCOVID))+
+  geom_point(color = "purple", alpha=0.5)+
+  theme_bw()+
+  annotate("text",x= 0.15, y= 0.05, label = paste0("Corr = ", round(cor(CCA_trt$u[,1], CCA_ctrl$u[,1]),4)))+
+  labs(x = "Loading of metabolites from COVID group analysis",
+       y = "Loading of metabolites from non COVID group analysis")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 12),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+  scale_color_d3()
+
+# ggsave("../inst/SavedFigures/COVID_Xloading_ta.pdf", plot = p_Xloading_ta_comp, width = 5, height = 5)
+
+p_Xloading_ta_bar <- ggplot(data = data.frame(COVID = CCA_trt$u[,1], nonCOVID = CCA_ctrl$u[,1], item = 1:ncol(Xt)),
+                          aes(x = item))+
+ geom_bar(aes(x=item, y = sort(abs(COVID))), fill = "goldenrod2", position = "dodge", stat = "identity")+
+ geom_bar(aes(x=item, y = -abs(nonCOVID)[order(abs(COVID))]), position = "dodge", stat = "identity", fill= "aquamarine")+   theme_bw()+
+ labs( x = "Metabolites", y = "Loading of metabolites")+
+ annotate("text", x= 55, y= 0.15, label = "From COVID group analysis", color = "goldenrod2")+
+ annotate("text",x= 55, y= -0.2, label = "From non COVID group analysis", color = "aquamarine")+
+ theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 12),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        axis.text.x = element_blank(),
+        legend.position = "bottom")
+
+# ggsave("../inst/SavedFigures/COVID_Xloading_ta_bar.pdf", plot = p_Xloading_ta_bar, width = 5, height = 5)
+
+p_Yloading_tc_comp <- ggplot(data = data.frame(COVID = CCA_trt$v[,1], Contrastive = CCA_ctst$v[,1]),
+                             aes(x=COVID, y=Contrastive))+
+  geom_point(color = "plum2", alpha=0.5)+
+  theme_bw()+
+  annotate("text",x= 0.1, y= 0.06, label = paste0("Corr = ", round(cor(CCA_trt$v[,1], CCA_ctst$v[,1]),4)))+
+  labs(x = "Loading of proteins from COVID group analysis",
+      y = "Loading of proteins from contrastive analysis")+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 12),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+  scale_color_d3()
+# ggsave("../inst/SavedFigures/COVID_Yloading_tc.pdf", plot = p_Yloading_tc_comp, width = 5, height = 5)
+
+p_Yloading_tc_bar <- ggplot(data = data.frame(COVID = CCA_trt$v[,1], nonCOVID = CCA_ctst$v[,1], item = 1:ncol(Yt)),
+                          aes(x = item))+
+ geom_bar(aes(x=item, y = sort(abs(COVID))), fill = "tomato", position = "dodge", stat = "identity")+
+ geom_bar(aes(x=item, y = -abs(nonCOVID)[order(abs(COVID))]), position = "dodge", stat = "identity", fill= "darkgreen")+   theme_bw()+
+ labs( x = "Proteins", y = "Loading of proteins")+
+ annotate("text", x= 250, y= 0.1, label = "From COVID group analysis", color = "tomato")+
+ annotate("text",x= 250, y= -0.13, label = "From contrastive analysis", color = "darkgreen")+
+ theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 12),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+               axis.text.x = element_blank(),
+        legend.position = "bottom")
+# ggsave("../inst/SavedFigures/COVID_Yloading_tc_bar.pdf", plot = p_Yloading_tc_bar, width = 5, height = 5)
+
+p_moti2 <- ggarrange(p_score_t, p_score_a, p_Yloading_ta_bar, nrow=1, common.legend = TRUE, legend = "bottom", labels = "AUTO", align = "h")
+ggsave("../inst/SavedFigures/COVID_moti.pdf", plot = p_moti2, width = 13, height = 5)
+```
+
+
+
+
+
+# Real data application of s3CA on Sorghum multi-omics data
+```{r sorghum data s3CA}
+##### 0. Data organization ####
+load("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/SmallHarvest/GroupSparseCCA/Drought analysis/SH_Drought_102_341_468_wRep.RData")
+
+ancom1 <- function(dat){
+  nonzerosum <- c() 
+  nonzerocount <- c()
+  for (i in 1:(dim(dat)[1])) {
+    sum <- 0
+    count <- 0
+    for (k in 1:(dim(dat)[2])) {
+      if(dat[i,k]==0){
+        dat[i,k] <- log(dat[i,k]+1)
+      }
+      else{
+        dat[i,k] <- log(dat[i,k]+1)
+        sum=sum+dat[i,k]
+        count=count+1
+      }
+    }
+    nonzerosum=c(nonzerosum,sum)
+    nonzerocount=c(nonzerocount,count)
+  }
+  geomean <- matrix(rep.int(nonzerosum/nonzerocount,times = rep(dim(dat)[2],dim(dat)[1])),nrow = dim(dat)[1],byrow = T) 
+  return(dat-geomean)
+}
+
+# reorder by group information
+mtbgroup <- mtb_group[order(mtb_group$Superclass),]
+mbgroup <- mb_group[order(mb_group$phylum),]
+
+mtb <- mtb[,mtbgroup$mtb]
+mb <- mb[,mbgroup$OTU]
+
+# check align mtb and mb
+covariates <- meta
+rownames(covariates) <- meta$Barcode
+covariates$Date <- factor(covariates$Date, levels = c(70717, 80117, 82817), labels = c("July07","Aug01","Aug28"))
+
+# transformation
+mtb_log <- log(mtb + 1)
+mb_ancom1 <- ancom1(mb + 1)
+
+
+#### 1. Choose correlation or covariance ####
+# Use correlation matrix or covariance matrix
+cormat <- TRUE
+#### 2. Choose conditions ####
+a_ind <- covariates$Treatment == "WW"
+t_ind <- covariates$Treatment == "WS"
+
+X_ind <- 1:ncol(mtb_log)
+Y_ind <- 1:ncol(mb_ancom1)
+
+Xa <- scale(mtb_log[a_ind,X_ind], scale = cormat)
+Ya <- scale(mb_ancom1[a_ind,Y_ind], scale = cormat)
+Xt <- scale(mtb_log[t_ind,X_ind], scale = cormat)
+Yt <- scale(mb_ancom1[t_ind,Y_ind], scale = cormat)
+
+p <- ncol(Xa)
+q <- ncol(Ya)
+na <- nrow(Xa)
+nt <- nrow(Xt)
+Kmax <- min(p, q)
+covariates_a <- covariates[rownames(Xa),]
+covariates_t <- covariates[rownames(Xt),]
+
+#### 3. s3CA  ####
+res <- cCCA(Xa = Xa, Ya = Ya, Xt = Xt, Yt = Yt, eta = NULL, sparse_ctst = 0.2, sparse_trt = 0.2, sparse_ctrl = 0.2)
+cpmd <- res$CCA_ctst
+pmd_t <- res$CCA_trt
+pmd_a <- res$CCA_ctrl
+
+#### 4. Score plot ####
+
+# contrastive score df 
+df_score <- data.frame(X_C1 = Xt%*%cpmd$u[,1],
+                       X_C2 = Xt%*%cpmd$u[,2],
+                       Y_C1 = Yt%*%cpmd$v[,1],
+                       Y_C2 = Yt%*%cpmd$v[,2],
+                       covariates_t)
+
+df_score$cluster <- factor(kmeans(df_score[,c("X_C1","X_C2")], centers = 2)$cluster)
+
+# treatment score df
+df_score_t <- data.frame(X_C1 =  Xt%*%pmd_t$u[,1], X_C2 =  Xt%*%pmd_t$u[,2],
+                         Y_C1 =  Yt%*%pmd_t$v[,1], Y_C2 =  Yt%*%pmd_t$v[,2],
+                         covariates_t)
+
+df_score_a <- data.frame(X_C1 =  Xa%*%pmd_a$u[,1], X_C2 =  Xa%*%pmd_a$u[,2],
+                         Y_C1 =  Ya%*%pmd_a$v[,1], Y_C2 =  Ya%*%pmd_a$v[,2],
+                         covariates_a)
+
+
+p_score <- ggplot(df_score)+
+  geom_point(aes(x = X_C1, y = X_C2, color = factor(cluster),shape = Date), size=2)+
+  labs(x = "First component wrt metabolites", y = "Second component wrt metabolites", color = "Contrastive clusters", title = "Contrasitve")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+  scale_color_aaas()
+
+# ggsave("../inst/SavedFigures/Sorghum_WSWW.pdf", p_score, width = 8, height = 6, unit = "in")
+
+
+p_score_t_wcs <-  ggplot(df_score_t)+
+  geom_point(aes(x = X_C1, y = X_C2, color = factor(df_score$cluster), shape = Date), size=2)+
+  labs(x = "First component wrt metabolites", y = "Second component wrt metabolites", color = "Contrastive clusters", title = "Water-stressed only")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+  scale_color_aaas()
+
+p_score_a_ws <-  ggplot(df_score_a)+
+  geom_point(aes(x = X_C1, y = X_C2, shape = Date), size=2)+
+  labs(x = "First component wrt metabolites", y = "Second component wrt metabolites", title = "Well-watered only")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+  scale_color_aaas()
+
+# ggsave("../inst/SavedFigures/Sorghum_WS_wcs.pdf", p_score_t_wcs, width = 8, height = 6, unit = "in")
+# ggsave("../inst/SavedFigures/Sorghum_score.pdf", ggarrange(p_score, p_score_t_wcs, p_score_a_ws, common.legend = TRUE, legend = "bottom", nrow = 1), width = 12, height = 5, unit = "in")
+
+p_score_t <-  ggplot(df_score_t)+
+  geom_point(aes(x = X_C1, y = X_C2), size=2)+
+  labs(x = "First component wrt metabolites", y = "Second component wrt metabolites")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")
+# ggsave("../inst/SavedFigures/Sorghum_WS.pdf", p_score_t, width = 6, height = 6, unit = "in")
+
+print(ggarrange(p_score, p_score_t_wcs, p_score_a_ws, common.legend = TRUE, legend = "bottom"))
+
+#### 5. Loading plot ####
+# loading groups
+nb.cols <- 15
+mycolors <- colorRampPalette(brewer.pal(20, "Set3"))(nb.cols)
+mtb_bar_t <- data.frame(Loadings=c(pmd_t$u[,2]),
+                        Superclass=rep(mtbgroup$Superclass,1),
+                        Metabolites_Index=1:ncol(Xt),
+                        Unique = (pmd_t$u[,2] !=0 & cpmd$u[,2]==0),
+                        Analysis = "Water-stressed only")
+mtb_bar_t$min=rep(c(0,cumsum(table(mtb_bar_t$Superclass))[1:(nb.cols-1)])+0.5,table(mtb_bar_t$Superclass))
+mtb_bar_t$max=rep(c(cumsum(table(mtb_bar_t$Superclass))[1:nb.cols])+0.5,table(mtb_bar_t$Superclass))
+mtb_bar_ctst <- data.frame(Loadings=cpmd$u[,2],
+                          Superclass=rep(mtbgroup$Superclass,1),
+                          Metabolites_Index=1:ncol(Xt),
+                          Unique = (pmd_t$u[,2] ==0 & cpmd$u[,2]!=0),
+                          Analysis = "Contrastive")
+mtb_bar_ctst$min=rep(c(0,cumsum(table(mtb_bar_ctst$Superclass))[1:(nb.cols-1)])+0.5,table(mtb_bar_ctst$Superclass))
+mtb_bar_ctst$max=rep(c(cumsum(table(mtb_bar_ctst$Superclass))[1:nb.cols])+0.5,table(mtb_bar_ctst$Superclass))
+
+mtb_bar <- rbind(mtb_bar_t, mtb_bar_ctst)
+
+
+p_mtbbar <- ggplot(mtb_bar,aes(x = Metabolites_Index , y = Loadings, fill = Unique)) +
+  geom_rect(data = mtb_bar,aes(xmin = min, xmax = max, ymin = -Inf, ymax =Inf, fill = Superclass),show.legend = F)+
+  theme_minimal()+
+  labs(title="")+
+  facet_wrap(vars(Analysis), nrow = 2)+
+  geom_bar(aes(x = Metabolites_Index , y = Loadings),position = "dodge", stat = "identity", show.legend = T)+
+  theme(legend.title = element_blank(), legend.position = "top",legend.text = element_text( size = 8))+
+  theme(axis.text.x = element_blank())+
+  scale_fill_manual(values = c("TRUE" = "red","FALSE" = "black",
+                               "Alkaloids and derivatives"=mycolors[1],
+                               "Benzenoids"=mycolors[2],
+                               "Carboxylic acids and derivatives"=mycolors[3],
+                               "Homogeneous non-metal compounds"=mycolors[4],
+                               "Lignans, neolignans and related compounds" =mycolors[5],
+                               "Lipids and lipid-like molecules"=mycolors[6],
+                               "Nucleosides, nucleotides, and analogues"=mycolors[7],
+                               "Organic acids and derivatives" =mycolors[8],
+                               "Organic compounds" =mycolors[9],
+                               "Organic nitrogen compounds" =mycolors[10],
+                               "Organic oxygen compounds" =mycolors[11],
+                               "Organoheterocyclic compounds"=mycolors[12],
+                               "Organooxygen compounds"=mycolors[13],
+                               "Others"=mycolors[14],
+                               "Phenylpropanoids and polyketides"=mycolors[15]),
+                    breaks = sort(unique(mtb_bar$Superclass)))+
+                    #guide = "none")+
+  theme(strip.text.x = element_text(size = 10))+
+  theme(axis.title =element_text(size=14))+
+  theme(plot.title  = element_text(hjust = 0.5))+
+  guides(linetype = guide_legend(override.aes = list(fill = c("black","white"))))+
+  theme(legend.key = element_rect(fill = "white", colour = "black"))
+
+print(p_mtbbar)
+# ggsave("../inst/SavedFigures/Sorghum_loadingsmtb.pdf", p_mtbbar, width = 12, height = 8, unit = "in")
+
+
+nb.cols <- 17
+mycolors <- colorRampPalette(brewer.pal(8, "Set3"))(nb.cols)
+mb_bar_t <- data.frame(Loadings=c(pmd_t$v[,2]),
+                       Phylum=rep(mbgroup$phylum,1),
+                       Microbes_Index=rep(1:468,1),
+                       Unique = (pmd_t$v[,2] !=0 & cpmd$v[,2]==0),
+                       Analysis = "Water-stressed only")
+mb_bar_t$min=rep(c(0,cumsum(table(mb_bar_t$Phylum))[1:(nb.cols-1)])+0.5,table(mb_bar_t$Phylum))
+mb_bar_t$max=rep(c(cumsum(table(mb_bar_t$Phylum))[1:nb.cols])+0.5,table(mb_bar_t$Phylum))
+mb_bar_ctst <- data.frame(Loadings=cpmd$v[,2],
+                          Phylum=rep(mbgroup$phylum,1),
+                          Microbes_Index=rep(1:468,1),
+                          Unique = (pmd_t$v[,2] ==0 & cpmd$v[,2]!=0),
+                          Analysis = "Contrastive")
+mb_bar_ctst$min=rep(c(0,cumsum(table(mb_bar_ctst$Phylum))[1:(nb.cols-1)])+0.5,table(mb_bar_ctst$Phylum))
+mb_bar_ctst$max=rep(c(cumsum(table(mb_bar_ctst$Phylum))[1:nb.cols])+0.5,table(mb_bar_ctst$Phylum))
+
+mb_bar <- rbind(mb_bar_t, mb_bar_ctst)
+
+
+
+p_mbbar <- ggplot(mb_bar,aes(x =Microbes_Index , y = Loadings, fill=Unique)) +
+  geom_rect(data = mb_bar,aes(xmin = min, xmax = max, ymin = -Inf, ymax =Inf, fill = Phylum),show.legend = F)+
+  theme_minimal()+
+  labs(title="")+
+  geom_bar(aes(x =Microbes_Index , y = Loadings),position = "dodge", stat = "identity", show.legend = T)+
+  theme(legend.title = element_blank(), legend.position = "top",legend.text = element_text( size = 8))+
+  theme(axis.text.x = element_blank())+
+  facet_wrap(vars(Analysis), nrow = 2)+
+  scale_fill_manual(values = c("TRUE" = "red","FALSE" = "black",
+                               "Acidobacteria"=mycolors[1],
+                               "Actinobacteria"=mycolors[2],
+                               "Armatimonadetes"=mycolors[3],
+                               "Bacteroidetes"=mycolors[4],
+                               "candidate_division_WPS"=mycolors[5],
+                               "Chloroflexi" =mycolors[6],
+                               "Cyanobacteria"=mycolors[7],
+                               "Firmicutes"=mycolors[8],
+                               "Gemmatimonadetes"=mycolors[9],
+                               "Ignavibacteriae"=mycolors[10],
+                               "Nitrospirae"   =mycolors[11],
+                               "Planctomycetes"    =mycolors[12],
+                               "Poribacteria" =mycolors[13],
+                               "Proteobacteria"=mycolors[14],
+                               "Tenericutes"=mycolors[15],
+                               "Thaumarchaeota"   =mycolors[16],
+                               "Verrucomicrobia"    =mycolors[17]),
+                    # breaks = sort(unique(mb_bar$Sig_loading)))+
+                    breaks = sort(unique(mb_bar$Phylum)))+
+                    #guide = "none")+
+  theme(strip.text.x = element_text(size = 14))+
+  theme(axis.title =element_text(size=14))+
+  theme(plot.title  = element_text(hjust = 0.5))+
+  theme(legend.key = element_rect(fill = "white", colour = "black"))+
+  scale_x_discrete(limits=levels(mb_bar$Microbiome_Index))+
+  guides(fill=guide_legend(nrow=3,byrow=TRUE))
+
+p_mbbar
+
+# ggsave("../inst/SavedFigures/Sorghum_loadingsmb.pdf", p_mbbar, width = 12, height = 8, unit = "in")
+
+
+#### 6. Expression heatmap ####
+loading_type <- case_when(cpmd$u[,2]==0 & pmd_t$u[,2]!=0 ~ "Water-stressed",
+                          cpmd$u[,2]!=0 & pmd_t$u[,2]==0 ~ "Contrastive",
+                          cpmd$u[,2]==0 & pmd_t$u[,2]==0 ~ "none",
+                          cpmd$u[,2]!=0 & pmd_t$u[,2]!=0 ~ "both")
+heat_dat <- Xt[,loading_type != "none"]
+loading_type <- loading_type[loading_type != "none"]
+pdf("../inst/SavedFigures/Sorghum_heatmap.pdf", width = 8, height= 6)
+p_heat <- Heatmap(t(heat_dat), column_split = ifelse(df_score$cluster == 1, "Contrastive cluster1", "Contrastive cluster2") ,
+        cluster_rows = TRUE, cluster_columns = TRUE, row_split = loading_type, 
+        show_row_names = FALSE, show_column_names = FALSE, name = "Standardized expression",
+        heatmap_legend_param = list(direction = "horizontal"))
+draw(p_heat,  heatmap_legend_side = "bottom")
+dev.off()
+
 ```
 

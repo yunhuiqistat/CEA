@@ -1,6 +1,7 @@
 #' Select \eqn{\eta} for contrastive spectral clustering by cPCA or scPCA
 #' @import PMA
 #' @import ggplot2
+#' @import ggsci
 #' @importFrom aricode ARI
 #' @importFrom cluster silhouette
 #' @param Xt data frame for target group, samples in rows, variables in columns. If PCA is applied to correlation matrix, Xt should be scaled and centered.

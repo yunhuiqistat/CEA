@@ -1,0 +1,2435 @@
+---
+title: "MoreRealExamples"
+author: "YunhuiQi"
+date: "2025-01-03"
+output: html_document
+---
+
+
+```{r load packages, echo =FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 15,
+  fig.height = 10,
+  out.width = "100%",
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE
+)
+library(CEA)
+library(ComplexHeatmap)
+library(ggpubr)
+library(reshape2)
+library(cowplot)
+library(RColorBrewer)
+library(misty)
+library(PMA)
+library(tidyverse)
+source('~/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/LargeHarvest/GroupSparseCCA/code/GSCCAmainFunctions.R')
+select <- dplyr::select
+```
+
+<!-- ```{r define functions} -->
+<!-- score_reg <- function(x, y, plot = FALSE, title = ""){ -->
+<!--   # for continuous interested covariate -->
+<!--   y <- y - mean(y) -->
+<!--   fit <- lm(y~., data = x) -->
+<!--   dat <- as.data.frame(cbind(x, y)) -->
+<!--   if(plot){ -->
+<!--     p=ggplot(data = dat)+ -->
+<!--       geom_point(aes(x = dat[,1], y = dat[,2], color = dat[,3]), show.legend = F)+ -->
+<!--       labs(x = colnames(dat)[1], y = colnames(dat)[2], title = title) -->
+<!--       theme_bw() -->
+<!--     print(p) -->
+<!--   } -->
+<!--   return(fit) -->
+<!-- } -->
+<!-- score_scatter <- function(dat, x, y, col, title){ -->
+<!--   # for discrete interested/nuisance covariate -->
+<!--   p_score <- ggplot(data = dat, aes_string(x = x, y = y, color = col))+ -->
+<!--                     geom_point(show.legend = TRUE)+ -->
+<!--                     theme_bw()+ -->
+<!--                     labs(x = x, y = y, title = title)+ -->
+<!--                     theme(legend.position = "bottom") -->
+<!--   return(p_score) -->
+<!-- } -->
+
+
+<!-- ``` -->
+## Motivation example 
+```{r, motivating example data organization}
+library(here)
+library(SingleCellExperiment)
+## From Boileau, P., Hejazi, N. S., and Dudoit, S. (2020). Exploring
+## high-dimensional biological data with sparse contrastive principal
+## component analysis. Bioinformatics, 36(11):3422–3430
+source("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/Contrastive/Useful datasets/BMMC/load_count_data.R")
+# retain genes that contain 5 or more non-zero counts accross all cells
+sce <- sce[(Matrix::rowSums(counts(sce) != 0) > 4), ]
+
+# retain 1000 most variable genes
+vars <- rowVars(as.matrix(log1p(counts(sce))), useNames = TRUE)
+names(vars) <- rownames(sce)
+vars <- sort(vars, decreasing = TRUE)
+core <- sce[names(vars)[1:1000], ]
+
+# split into target and background datasets
+healthy1_sce <- core[, which(core$cell_prov %in% c("healthy_1"))]
+healthy2_sce <- core[, which(core$cell_prov %in% c("healthy_2"))]
+patient027_sce <- core[, which(core$cell_prov %in%
+                                  c("pre_trans_027", "post_trans_027"))]
+patient035_sce <- core[, which(core$cell_prov %in%
+                                  c("pre_trans_035", "post_trans_035"))]
+
+healthy1 <- t(counts(healthy1_sce))
+healthy2 <- t(counts(healthy2_sce))
+patient027 <- t(counts(patient027_sce))
+patient035 <- t(counts(patient035_sce))
+
+# get the classes
+pat027_class <- patient027_sce$cell_prov %>% factor
+pat035_class <- patient035_sce$cell_prov %>% factor
+```
+
+```{r, PCA and cPCA of patient 035 with healthy 1}
+pat035_pca <- prcomp(patient035, center = TRUE, scale. = TRUE)
+pat035_pca_df <- data.frame(
+  PC1 = pat035_pca$x[, 1],
+  PC2 = pat035_pca$x[, 2],
+  class = factor(pat035_class, levels = c("pre_trans_035", "post_trans_035"),
+                 labels=c("Pre-transplant","Post-transplant")),
+  clusters = kmeans(pat035_pca$x[, 1:2], centers = 2)$cluster
+) 
+
+mean(silhouette(pat035_pca_df$clusters, dist(pat035_pca_df[,c("PC1","PC2")]))[,"sil_width"])
+aricode::ARI(pat035_pca_df$class, pat035_pca_df$clusters)
+
+pat035_pca_p <- pat035_pca_df %>%
+  ggplot(aes(x = PC1, y = PC2, colour = class, shape = factor(clusters))) +
+  geom_point(alpha = 0.5, size = 1) +
+  theme_bw()+
+  theme(legend.position = "right")+
+  labs(color = "") +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+  scale_color_d3()
+pat035_pca_p
+
+
+# cPCA with healthy 1
+Xt <- scale(as.matrix(patient035))
+Xa <- scale(as.matrix(healthy1))
+
+eta_tuning_general(Xa = Xa, Xt = Xt, eta_range = seq(1,25,1))
+
+set.seed(111)
+pat035_heal1_cpca <- eigen(cor(Xt)-3*cor(Xa))
+genes_sel <- abs(pat035_heal1_cpca$vectors[,1]) > 0.05
+samples_sel <- 1:4501
+Xt_sig_order <- Xt[order(pat035_class), genes_sel]
+Xt_sig_order <- Xt_sig_order[samples_sel, ]
+annotation_col <- HeatmapAnnotation(class=factor(ifelse(sort(pat035_class)[samples_sel]=="pre_trans_035","Pre-transplant","Post-transplant"), levels=c("Pre-transplant","Post-transplant")), class=list(nrow=1))
+colnames(Xt_sig_order) <- NULL
+# pdf("FiguresSubmit/moti_heatmap035_opteta.pdf", width = 8, height= 4)
+heat0351 <- Heatmap(t(Xt_sig_order), heatmap_legend_param = list(direction = "horizontal"),
+                    cluster_columns = FALSE, cluster_rows = TRUE, name = "Standardized expression",
+                    column_split = factor(ifelse(sort(pat035_class)[samples_sel]=="pre_trans_035","Pre-transplant","Post-transplant"), levels=c("Pre-transplant","Post-transplant")))
+draw(heat0351, merge_legend = TRUE, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+# dev.off()
+
+pat035_heal1_cpca_df <- data.frame(
+  cPC1 = Xt%*%pat035_heal1_cpca$vectors[,1],
+  cPC2 = Xt%*%pat035_heal1_cpca$vectors[,2],
+  class = factor(pat035_class, levels = c("pre_trans_035", "post_trans_035"), labels=c("Pre-transplant","Post-transplant"))
+) 
+
+pat035_heal1_cpca_df$clusters = kmeans(pat035_heal1_cpca_df[, c("cPC1","cPC2")], centers = 2)$cluster
+sil <- silhouette(pat035_heal1_cpca_df$clusters, dist(pat035_heal1_cpca_df[,c("cPC1","cPC2")]))[,"sil_width"]
+mean(sil)
+aricode::ARI(pat035_heal1_cpca_df$class, pat035_heal1_cpca_df$clusters)
+
+
+
+pat035_heal1_cpca_p <- pat035_heal1_cpca_df %>%
+  ggplot(aes(x = cPC1, y = cPC2, colour = class, shape = factor(clusters))) +
+  geom_point(alpha = 0.5, size = 1) +
+  theme_bw()+
+  labs(color = "") +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+  scale_color_d3()
+pat035_heal1_cpca_p
+
+score0351 <- ggarrange(pat035_pca_p, pat035_heal1_cpca_p, nrow=1, common.legend = TRUE, legend = "bottom")
+
+# ggsave("FiguresSubmit/moti_PCA0351.pdf", pat035_pca_p, width = 4, height = 4, unit = "in")
+# ggsave("FiguresSubmit/moti_cPCA0351_opteta.pdf", pat035_heal1_cpca_p, width = 4, height = 4, unit = "in")
+# ggsave("FiguresSubmit/moti_score0351_opteta.pdf", score0351, width = 8, height = 4, unit = "in")
+
+
+# Load required libraries
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(enrichplot)
+
+# Example vector of Ensembl gene IDs
+ensembl_ids <- colnames(Xt)[genes_sel]
+
+# Perform GO enrichment analysis using Ensembl IDs
+go_enrich <- enrichGO(gene = ensembl_ids,
+                      OrgDb = org.Hs.eg.db,
+                      keyType = "ENSEMBL",       # Indicates Ensembl Gene IDs are being used
+                      ont = "MF",                # Ontology: BP (Biological Process), MF (Molecular Function), CC (Cellular Component)
+                      pAdjustMethod = "BH",      # p-value adjustment method
+                      pvalueCutoff = 0.05,       # Adjusted p-value cutoff
+                      qvalueCutoff = 0.2,
+                      readable = TRUE)
+
+# View results
+head(go_enrich)
+
+# Plot results
+dotplot(go_enrich, showCategory = 10)
+
+
+# Convert Ensembl IDs to Entrez IDs for compatibility
+entrez_ids <- bitr(ensembl_ids, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+do_enrichment <- DOSE::enrichDO(
+  gene          = entrez_ids$ENTREZID,
+  ont           = "HDO",  # Specify Disease Ontology
+  organism = "hsa",
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.2,
+  readable      = TRUE
+)
+
+# Print the DO enrichment result
+head(do_enrichment)
+
+# Visualize the disease enrichment results
+dotplot(do_enrichment, showCategory = 10)
+barplot(do_enrichment, showCategory = 10, title = "Top 10 Enriched GO Terms")
+
+```
+
+
+```{r, PCA and cPCA of patient 027 with two class}
+core <- sce[names(vars)[1:500], ]
+
+# split into target and background datasets
+healthy1_sce <- core[, which(core$cell_prov %in% c("healthy_1"))]
+healthy2_sce <- core[, which(core$cell_prov %in% c("healthy_2"))]
+patient027_sce <- core[, which(core$cell_prov %in%
+                                  c("pre_trans_027", "post_trans_027"))]
+patient035_sce <- core[, which(core$cell_prov %in%
+                                  c("pre_trans_035", "post_trans_035"))]
+
+healthy1 <- t(counts(healthy1_sce))
+healthy2 <- t(counts(healthy2_sce))
+patient027 <- t(counts(patient027_sce))
+patient035 <- t(counts(patient035_sce))
+
+# get the classes
+pat027_class <- patient027_sce$cell_prov %>% factor
+pat035_class <- patient035_sce$cell_prov %>% factor
+Xt <- scale(patient027[pat027_class == "post_trans_027",])
+Xa <- scale(patient027[pat027_class == "pre_trans_027",])
+
+post_pca <- prcomp(Xt, center = TRUE, scale. = TRUE)
+post_pca_df <- data.frame(
+  PC1 = post_pca$x[, 1],
+  PC2 = post_pca$x[, 2],
+  clusters = kmeans(post_pca$x[, 1:2], centers = 2)$cluster
+) 
+
+mean(silhouette(pat035_pca_df$clusters, dist(pat035_pca_df[,c("PC1","PC2")]))[,"sil_width"])
+aricode::ARI(pat035_pca_df$class, pat035_pca_df$clusters)
+
+post_pca_p <- post_pca_df %>%
+  ggplot(aes(x = PC1, y = PC2, colour =  factor(clusters))) +
+  geom_point(alpha = 0.5, size = 1) +
+  theme_bw()+
+  theme(legend.position = "right")+
+  labs(color = "") +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")
+pat035_pca_p
+
+
+eta_tuning_general(Xa = Xa, Xt = Xt, eta_range = seq(1,10,1))
+
+set.seed(111)
+post_pre_cpca <- eigen(cor(Xt)-2*cor(Xa))
+genes_sel <- abs(post_pre_cpca$vectors[,1]) > 0.05
+samples_sel <- 1:4501
+Xt_sig_order <- Xt[order(pat035_class), genes_sel]
+Xt_sig_order <- Xt_sig_order[samples_sel, ]
+annotation_col <- HeatmapAnnotation(class=factor(ifelse(sort(pat035_class)[samples_sel]=="pre_trans_035","Pre-transplant","Post-transplant"), levels=c("Pre-transplant","Post-transplant")), class=list(nrow=1))
+colnames(Xt_sig_order) <- NULL
+# pdf("FiguresSubmit/moti_heatmap035_opteta.pdf", width = 8, height= 4)
+heat0351 <- Heatmap(t(Xt_sig_order), heatmap_legend_param = list(direction = "horizontal"),
+                    cluster_columns = FALSE, cluster_rows = TRUE, name = "Standardized expression",
+                    column_split = factor(ifelse(sort(pat035_class)[samples_sel]=="pre_trans_035","Pre-transplant","Post-transplant"), levels=c("Pre-transplant","Post-transplant")))
+draw(heat0351, merge_legend = TRUE, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+# dev.off()
+
+post_pre_cpca_df <- data.frame(
+  cPC1 = Xt%*%post_pre_cpca$vectors[,1],
+  cPC2 = Xt%*%post_pre_cpca$vectors[,2]
+) 
+
+post_pre_cpca_df$clusters = kmeans(post_pre_cpca_df[, c("cPC1","cPC2")], centers = 2)$cluster
+sil <- silhouette(post_pre_cpca_df$clusters, dist(post_pre_cpca_df[,c("cPC1","cPC2")]))[,"sil_width"]
+mean(sil)
+aricode::ARI(pat035_heal1_cpca_df$class, pat035_heal1_cpca_df$clusters)
+
+
+
+post_pre_cpca_p <- post_pre_cpca_df %>%
+  ggplot(aes(x = cPC1, y = cPC2, colour = factor(clusters))) +
+  geom_point(alpha = 0.5, size = 1) +
+  theme_bw()+
+  labs(color = "") +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")
+pat035_heal1_cpca_p
+
+score0351 <- ggarrange(pat035_pca_p, pat035_heal1_cpca_p, nrow=1, common.legend = TRUE, legend = "bottom")
+
+# ggsave("FiguresSubmit/moti_PCA0351.pdf", pat035_pca_p, width = 4, height = 4, unit = "in")
+# ggsave("FiguresSubmit/moti_cPCA0351_opteta.pdf", pat035_heal1_cpca_p, width = 4, height = 4, unit = "in")
+# ggsave("FiguresSubmit/moti_score0351_opteta.pdf", score0351, width = 8, height = 4, unit = "in")
+
+
+# Load required libraries
+library(clusterProfiler)
+library(org.Hs.eg.db)
+library(enrichplot)
+
+# Example vector of Ensembl gene IDs
+ensembl_ids <- colnames(Xt)[genes_sel]
+
+# Perform GO enrichment analysis using Ensembl IDs
+go_enrich <- enrichGO(gene = ensembl_ids,
+                      OrgDb = org.Hs.eg.db,
+                      keyType = "ENSEMBL",       # Indicates Ensembl Gene IDs are being used
+                      ont = "BP",                # Ontology: BP (Biological Process), MF (Molecular Function), CC (Cellular Component)
+                      pAdjustMethod = "BH",      # p-value adjustment method
+                      pvalueCutoff = 0.05,       # Adjusted p-value cutoff
+                      qvalueCutoff = 0.2,
+                      readable = TRUE)
+
+# View results
+head(go_enrich)
+
+# Plot results
+dotplot(go_enrich, showCategory = 10)
+
+
+# Convert Ensembl IDs to Entrez IDs for compatibility
+entrez_ids <- bitr(ensembl_ids, fromType = "ENSEMBL", toType = "ENTREZID", OrgDb = org.Hs.eg.db)
+
+do_enrichment <- DOSE::enrichDO(
+  gene          = entrez_ids$ENTREZID,
+  ont           = "HDO",  # Specify Disease Ontology
+  organism = "hsa",
+  pAdjustMethod = "BH",
+  pvalueCutoff  = 0.05,
+  qvalueCutoff  = 0.2,
+  readable      = TRUE
+)
+
+# Print the DO enrichment result
+head(do_enrichment)
+
+# Visualize the disease enrichment results
+dotplot(do_enrichment, showCategory = 10)
+barplot(do_enrichment, showCategory = 10, title = "Top 10 Enriched GO Terms")
+
+```
+
+```{r, sPCA and scPCA of patient 035 with healthy 1}
+core <- sce[names(vars)[1:500], ]
+
+# split into target and background datasets
+healthy1_sce <- core[, which(core$cell_prov %in% c("healthy_1"))]
+healthy2_sce <- core[, which(core$cell_prov %in% c("healthy_2"))]
+patient027_sce <- core[, which(core$cell_prov %in%
+                                  c("pre_trans_027", "post_trans_027"))]
+patient035_sce <- core[, which(core$cell_prov %in%
+                                  c("pre_trans_035", "post_trans_035"))]
+
+healthy1 <- t(counts(healthy1_sce))
+healthy2 <- t(counts(healthy2_sce))
+patient027 <- t(counts(patient027_sce))
+patient035 <- t(counts(patient035_sce))
+
+# get the classes
+pat027_class <- patient027_sce$cell_prov %>% factor
+pat035_class <- patient035_sce$cell_prov %>% factor
+Xt <- scale(patient027[pat027_class == "post_trans_027",])
+Xa <- scale(patient027[pat027_class == "pre_trans_027",])
+
+eta_tuning_general(Xt = Xt, Xa = Xa, km_cluster = 2, ckm_cluster = 2) 
+
+res <- cPCA(Xt=Xt, Xa=Xa, sparse_ctst = 0.2, sparse_trt = 0.2, sparse_ctrl= 0.2, eta = 1) 
+
+PCt <- res$PCt 
+PCa <- res$PCa
+cPC <- res$cPC
+Ut <- res$Ut
+cU <- res$cU
+
+
+df_score <- data.frame(PC1 = cPC[,1], PC2 = cPC[,2],
+                       class = factor(pat035_class, levels = c("pre_trans_035", "post_trans_035"),
+                 labels=c("Pre-transplant","Post-transplant")),
+                       cluster = kmeans(cPC[,1:2], centers = 2)$cluster) 
+df_score_t <- data.frame(PC1 = PCt[,1], PC2 = PCt[,2],
+                         class = factor(pat035_class, levels = c("pre_trans_035", "post_trans_035"),
+                 labels=c("Pre-transplant","Post-transplant")),
+                         cluster = kmeans(cPC[,1:2], centers = 2)$cluster) 
+cP <- ggplot(df_score)+
+   geom_point(aes(x=PC1, y=PC2, shape = factor(cluster), color = class))+
+   labs(title = "contrastive") 
+ Pt <- ggplot(df_score_t)+ 
+   geom_point(aes(x=PC1, y=PC2, shape = factor(cluster), color = class))+ 
+   labs(title = "treatment") 
+
+pat035_spca_p <- df_score %>%
+  ggplot(aes(x = PC1, y = PC2, colour = class, shape = factor(cluster))) +
+  geom_point(alpha = 0.5, size = 1) +
+  theme_bw()+
+  theme(legend.position = "right")+
+  labs(color = "", title = "Patient only") +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+  scale_color_d3()
+
+
+pat035_heal1_scpca_p <- df_score_t %>%
+  ggplot(aes(x = PC1, y = PC2, colour = class, shape = factor(cluster))) +
+  geom_point(alpha = 0.5, size = 1) +
+  theme_bw()+
+  labs(color = "", title = "Contrastive") +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "bottom")+
+  scale_color_d3()
+
+score0351 <- ggarrange(pat035_spca_p, pat035_heal1_scpca_p, nrow=1, common.legend = TRUE, legend = "bottom")
+
+# ggsave("FiguresSubmit/moti_PCA0351.pdf", pat035_pca_p, width = 4, height = 4, unit = "in")
+# ggsave("FiguresSubmit/moti_cPCA0351_opteta.pdf", pat035_heal1_cpca_p, width = 4, height = 4, unit = "in")
+# ggsave("FiguresSubmit/moti_score0351_opteta.pdf", score0351, width = 8, height = 4, unit = "in")
+```
+
+## Large Harvest
+
+#### 1. Data description: 19 genotypes for 3 varieties (G, S, E), two growth condition (High N, Low N). The Nitrogen effect is the major variation.
+
+#### 2. Findings
+
+Nitrogen condition is crucial for the sorghum growth. The root metabolites and rhzosphere microbes are also affected by the nitrogen condition. Although the biomass of sorghum from whatever genotype under low nitrogen condition will be affected, some genotypes might be more resistant with biomass under low nitrogen is comparable or even higher than that under high nitrogen. 
+
+We classify the genotypes based on their nitrogen use efficiency (NUE) which is defined as the ratio between the mean dry weight in low nitrogen group and high nitrogen group. Genotypes with nitrogen use efficiency greater than 0.85 are used as the target group, while genotypes with low NUE serve as the ancillary group. 
+
+We applied the sparse cross-covariance analysis to target group and ancillary group separately with fixed sparsity parameter 0.2 to encourage more sparsity. The clusters identified are pretty consistent with the nitrogen conditions with ARI 0.64392 and 0.55825 for high NUE and low NUE group respectively. However, clusters identified based on s3CA results is different from the nitrogen condition with ARI 0.02553. 
+
+The new clusters are not associated with any known factors. We then check the features with non-zero loadings from s3CA and target group only analysis. 
+
+```{r LH load data, eval=TRUE, echo=FALSE}
+load("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/DimensionReduction/CCA paper/SavedData/SelCCALargeHarvest/SelCCALargeHarvest.RData")
+
+mtbgroup <- mtbgroup[order(mtbgroup$superclass),]
+mbgroup <- mbgroup[order(mbgroup$phylum),]
+
+# align mtb and mb
+rownames(mb) <- mb$Unique.ID
+mb <- mb[mtb$Unique.ID,]
+
+mb_count <- mb[,23:712]
+rownames(mb_count) <- mb$Unique.ID
+mtb_count <- mtb[, 22:98]
+rownames(mtb_count) <- mtb$Unique.ID
+
+covariates <- mb[,1:22]
+covariates$biomass <- mb$Total.Dry.Weight.kg.acre
+
+# Transformation
+mtb_log <- log(mtb_count + 1)
+mb_ancom1 <- ancom1(mb_count)
+# Reorder by group information
+mtb_log <- mtb_log[, mtbgroup$mtb]
+mb_ancom1 <- mb_ancom1[, mbgroup$ASV]
+```
+
+```{r LH genotype nitrogen efficiency define, eval=TRUE, echo=FALSE}
+cc <- read.csv("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/LargeHarvest/Nuse/cc_biomass_extract_EG.csv")
+cc_sub <- cc[cc$Unique.ID %in% covariates$Unique.ID,]
+genotypes <- names(table(covariates$Genotype))
+ratio_fresh <- c()
+ratio_dry <- c()
+for (geno in genotypes) {
+  cc_geno <- cc_sub[cc_sub$Geno==geno,]
+  cc_geno_high <- cc_geno[cc_geno$Treat=="Full N",]
+  cc_geno_low <- cc_geno[cc_geno$Treat=="Low N",]
+  ratio_dry <- c(ratio_dry,mean(cc_geno_low$Total.Dry.Weight.kg.acre)/mean(cc_geno_high$Total.Dry.Weight.kg.acre))
+  ratio_fresh <- c(ratio_fresh,mean(cc_geno_low$Total.Fresh.Weight.kg.acre)/mean(cc_geno_high$Total.Fresh.Weight.kg.acre))
+}
+names(ratio_fresh) <- genotypes
+names(ratio_dry) <- genotypes
+Neff <- ifelse(ratio_dry > 0.7, "Efficient", "Inefficient")
+Neff <- data.frame(Genotype = names(Neff), Efficiency_binary = Neff, Eff_dry = ratio_dry, Eff_fresh = ratio_fresh, Plot = cc_sub[names(Neff), "Plot"])
+covariates_eff <- left_join(covariates, Neff, by = "Genotype")
+rownames(covariates_eff) <- covariates_eff$Unique.ID
+
+covariates <- covariates_eff
+```
+
+
+```{r LH s3CA, eval=TRUE, echo=FALSE}
+#### 1. Choose correlation or covariance ####
+# Use correlation matrix or covariance matrix
+cormat <- TRUE
+#### 2. Choose conditions ####
+# Take high nitrogen use effenciency genotypes as target group
+a_ind <- covariates$Eff_dry < 0.85 
+t_ind <- covariates$Eff_dry >= 0.85 
+X_ind <- 1:ncol(mtb_log)
+Y_ind <- 1:ncol(mb_ancom1)
+Xa <- scale(mtb_log[a_ind,  X_ind], scale = cormat)
+Ya <- scale(mb_ancom1[a_ind, Y_ind], scale = cormat)
+Xt <- scale(mtb_log[t_ind, X_ind], scale = cormat)
+Yt <- scale(mb_ancom1[t_ind, Y_ind], scale = cormat)
+
+
+covariates_a <- covariates[rownames(Xa), c("GrowthCondtion","Variety","Genotype",
+                                           "biomass","Eff_dry","Eff_fresh", "Rep",
+                                           "Efficiency_binary") ]
+covariates_t <- covariates[rownames(Xt), c("GrowthCondtion","Variety","Genotype",
+                                           "biomass","Eff_dry","Eff_fresh","Rep",
+                                           "Efficiency_binary") ]
+
+
+
+#### 3. s3CA  ####
+res <- cCCA(Xa = Xa, Ya = Ya, Xt = Xt, Yt = Yt, eta = NULL, sparse_ctst = 0.2, sparse_trt = 0.2, sparse_ctrl = 0.2)
+cpmd <- res$CCA_ctst
+pmd_t <- res$CCA_trt
+pmd_c <- res$CCA_ctrl
+# contrastive score df 
+df_score <- data.frame(X_C1 = Xt%*%cpmd$u[,1],
+                       X_C2 = Xt%*%cpmd$u[,2],
+                       Y_C1 = Yt%*%cpmd$v[,1],
+                       Y_C2 = Yt%*%cpmd$v[,2],
+                       covariates_t)
+
+km <- kmeans(df_score[,c("X_C1","Y_C1")], centers = 2)
+df_score$cluster <- km$cluster
+
+# treatment score df
+df_score_t <- data.frame(X_C1 =  Xt%*%pmd_t$u[,1], X_C2 =  Xt%*%pmd_t$u[,2],
+                         Y_C1 =  Yt%*%pmd_t$v[,1], Y_C2 =  Yt%*%pmd_t$v[,2],
+                         covariates_t)
+df_score_t$cluster <- kmeans(df_score_t[,c("X_C1","Y_C1")], centers = 2)$cluster
+# control score df
+df_score_a <- data.frame(X_C1 =  Xa%*%pmd_c$u[,1], X_C2 =  Xa%*%pmd_c$u[,2],
+                         Y_C1 =  Ya%*%pmd_c$v[,1], Y_C2 =  Ya%*%pmd_c$v[,2],
+                         covariates_a)
+df_score_a$cluster <- kmeans(df_score_a[,c("X_C1","Y_C1")], centers = 2)$cluster
+
+#### 4. Visualization ####
+# 4.1 score scatter nuisance removal 
+p_score_subg <- ggplot(df_score)+
+  geom_point(aes(x = X_C1, y = Y_C1, color = factor(cluster), shape = GrowthCondtion), size=4)+
+  labs(x = "Xu", y = "Yv", color = "Clusters", shape = "Nitrogen",title = "Contrastive")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+  geom_text(x=2, y=-7, label=paste0("ARI:", round(aricode::ARI(df_score$cluster, df_score[, "GrowthCondtion"]), 2)))
+
+p_score_t_subg <-  ggplot(df_score_t)+
+  geom_point(aes(x = X_C1, y = Y_C1, color = factor(cluster), shape = GrowthCondtion), size=4)+
+  labs(x = "Xu", y = "Yv", color = "Clusters", shape = "Nitrogen",title = "High NUE")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+    geom_text(x=1.5, y= -7, label=paste0("ARI:", round(aricode::ARI(df_score_t$cluster, df_score_t[, "GrowthCondtion"]), 2)))
+
+p_score_a_subg <-  ggplot(df_score_a)+
+  geom_point(aes(x = X_C1, y = Y_C1, color = factor(cluster), shape = GrowthCondtion), size=4)+
+  labs(x = "Xu", y = "Yv", color = "Clusters", shape = "Nitrogen",title = "Low NUE")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+    geom_text(x=2, y=-5.5, label=paste0("ARI:", round(aricode::ARI(df_score_a$cluster, df_score_a[, "GrowthCondtion"]), 2)))
+
+
+ggarrange(p_score_a_subg, p_score_t_subg, p_score_subg,  common.legend = TRUE, legend = "bottom", nrow=1)
+
+
+# cat("\n")
+# interested_y <- "Eff_dry"
+# predictor <- "Y_C1"
+# cat(paste(interested_y, "~cpmd_mb_score in Contrastive", sep = ""))
+# summary(score_reg(x = data.frame(x = df_score[,predictor]),
+#                   y = df_score[,interested_y],
+#                   plot=F, title = paste("Contrastive, color is ", interested_y, sep = "")))
+# cat(paste(interested_y, "~cpmd_mb_score in Treatment", sep = ""))
+# summary(score_reg(x = data.frame(x = df_score_t[,predictor]),y = df_score_t[,interested_y],
+#                   plot = F, title = paste("Trt only, color is ", interested_y, sep = "")))
+# cat(paste(interested_y, "~cpmd_mb_score in Control", sep = ""))
+# summary(score_reg(x = data.frame(x = df_score_a[,predictor]), y = df_score_a[,interested_y],
+#                   plot = F, title = paste("Control only, color is ", interested_y, sep = "")))
+# 
+# p_reg <- ggplot(data = data.frame(df_score[, c(predictor,"Genotype",interested_y)]),
+#                 aes_string(x = predictor,y = interested_y))+
+#   geom_point(aes( color = Genotype))+  geom_smooth(method = "lm", se = TRUE)+
+#   labs(title = "Contrastive")
+# 
+# p_reg_t <- ggplot(data = data.frame(df_score_t[, c(predictor,"Genotype",interested_y)]),
+#                 aes_string(x = predictor,y = interested_y))+
+#   geom_point(aes( color = Genotype))+  geom_smooth(method = "lm", se = TRUE)+
+#   labs(title = "Treatment only")
+# p_reg_c <- ggplot(data = data.frame(df_score_c[, c(predictor,"Genotype",interested_y)]),
+#                 aes_string(x = predictor,y = interested_y))+
+#   geom_point(aes( color = Genotype))+  geom_smooth(method = "lm", se = TRUE)+
+#   labs(title = "Control only")
+# ggarrange(p_reg, p_reg_t, p_reg_c, common.legend = T, legend = "bottom", nrow=1, align = "hv")
+```
+
+```{r LH loading bar plot,eval=TRUE, echo=FALSE}
+nb.cols <- 20
+mycolors <- colorRampPalette(brewer.pal(20, "Set3"))(nb.cols)
+mtb_bar_t <- data.frame(Loadings=c(pmd_t$u[,1]),
+                       Superclass=mtbgroup$superclass,
+                       Metabolites_Index=rep(1:77,1),
+                       Unique = (pmd_t$u[,1] !=0 & cpmd$u[,1]==0),
+                       Analysis = "Target")
+mtb_bar_t$min=rep(c(0,cumsum(table(mtb_bar_t$Superclass))[1:(nb.cols-1)])+0.5,table(mtb_bar_t$Superclass))
+mtb_bar_t$max=rep(c(cumsum(table(mtb_bar_t$Superclass))[1:nb.cols])+0.5,table(mtb_bar_t$Superclass))
+mtb_bar_ctst <- data.frame(Loadings=cpmd$u[,1],
+                       Superclass=mtbgroup$superclass,
+                       Metabolites_Index=rep(1:77,1),
+                          Unique = (pmd_t$u[,1] ==0 & cpmd$u[,1]!=0),
+                          Analysis = "Contrastive")
+mtb_bar_ctst$min=rep(c(0,cumsum(table(mtb_bar_ctst$Superclass))[1:(nb.cols-1)])+0.5,table(mtb_bar_ctst$Superclass))
+mtb_bar_ctst$max=rep(c(cumsum(table(mtb_bar_ctst$Superclass))[1:nb.cols])+0.5,table(mtb_bar_ctst$Superclass))
+
+mtb_bar <- rbind(mtb_bar_t, mtb_bar_ctst)
+
+p_mtbbar <- ggplot(mtb_bar,aes(x = Metabolites_Index , y = Loadings)) +
+  geom_rect(data = mtb_bar,aes(xmin = min, xmax = max, ymin = -Inf, ymax =Inf, fill = Superclass),show.legend = F)+
+  theme_minimal()+
+  labs(title="")+
+  facet_wrap(vars(Analysis), nrow = 2)+
+  geom_bar(aes(x = Metabolites_Index , y = Loadings,fill=Unique),position = "dodge", stat = "identity", show.legend = T)+
+  theme(legend.title = element_blank(), legend.position = "top",legend.text = element_text( size = 8))+
+  theme(axis.text.x = element_blank())+
+  scale_fill_manual(values = c("TRUE" = "red","FALSE" = "black",
+                               "Azoles"=mycolors[1],
+                               "Benzene and substituted derivatives"=mycolors[2],
+                               "Carboxylic acids and derivatives"=mycolors[3],
+                               "Cinnamic acids and derivatives"=mycolors[4],
+                               "Fatty Acyls" =mycolors[5],
+                               "Furofurans"=mycolors[6],
+                               "Glycerophospholipids" =mycolors[7],
+                               "Homogeneous other non-metal compounds" =mycolors[8],
+                               "Hydroxy acids and derivatives" =mycolors[9],
+                               "Non-metal oxoanionic compounds" =mycolors[10],
+                               "Organic phosphoric acids and derivatives" =mycolors[11],
+                               "Organonitrogen compounds"=mycolors[12],
+                               "Organooxygen compounds"=mycolors[13],
+                               "Phenols"=mycolors[14],
+                               "Prenol lipids"=mycolors[15],
+                               "Pteridines and derivatives"=mycolors[16],
+                               "Purine nucleosides"=mycolors[17],
+                               "Pyridines and derivatives"=mycolors[18],
+                               "Steroids and steroid derivatives"=mycolors[19],
+                               "Unsaturated hydrocarbons"=mycolors[20]),
+                    # breaks = sort(unique(mtb_bar$Sig)))+
+                    breaks = sort(unique(mtb_bar$Superclass)))+
+                    #guide = "none")+
+    theme(strip.text.x = element_text(size = 14))+
+  theme(axis.title =element_text(size=14))+
+  theme(plot.title  = element_text(hjust = 0.5))+
+  guides(linetype = guide_legend(override.aes = list(fill = c("black","white"))))+
+  theme(legend.key = element_rect(fill = "white", colour = "black"))+
+  guides(fill=guide_legend(nrow=3,byrow=TRUE))
+
+p_mtbbar
+
+
+nb.cols <- 18
+mycolors <- colorRampPalette(brewer.pal(8, "Set3"))(nb.cols)
+mb_bar_t <- data.frame(Loadings=c(pmd_t$v[,1]),
+                       Phylum=rep(mbgroup$phylum,1),
+                       Microbes_Index=rep(1:690,1),
+                       Unique = (pmd_t$v[,1] !=0 & cpmd$v[,1]==0),
+                       Analysis = "Target")
+mb_bar_t$min=rep(c(0,cumsum(table(mb_bar_t$Phylum))[1:(nb.cols-1)])+0.5,table(mb_bar_t$Phylum))
+mb_bar_t$max=rep(c(cumsum(table(mb_bar_t$Phylum))[1:nb.cols])+0.5,table(mb_bar_t$Phylum))
+mb_bar_ctst <- data.frame(Loadings=cpmd$v[,1],
+                          Phylum=rep(mbgroup$phylum,1),
+                          Microbes_Index=rep(1:690,1),
+                          Unique = (pmd_t$v[,1] ==0 & cpmd$v[,1]!=0),
+                          Analysis = "Contrastive")
+mb_bar_ctst$min=rep(c(0,cumsum(table(mb_bar_ctst$Phylum))[1:(nb.cols-1)])+0.5,table(mb_bar_ctst$Phylum))
+mb_bar_ctst$max=rep(c(cumsum(table(mb_bar_ctst$Phylum))[1:nb.cols])+0.5,table(mb_bar_ctst$Phylum))
+
+mb_bar <- rbind(mb_bar_t, mb_bar_ctst)
+
+
+p_mbbar <- ggplot(mb_bar,aes(x =Microbes_Index , y = Loadings, fill=Unique)) +
+  geom_rect(data = mb_bar,aes(xmin = min, xmax = max, ymin = -Inf, ymax =Inf, fill = Phylum),show.legend = F)+
+  theme_minimal()+
+  labs(title="")+
+  geom_bar(aes(x =Microbes_Index , y = Loadings),position = "dodge", stat = "identity", show.legend = T)+
+  theme(legend.title = element_blank(), legend.position = "top",legend.text = element_text( size = 8))+
+  theme(axis.text.x = element_blank())+
+  facet_wrap(vars(Analysis), nrow = 2)+
+  scale_fill_manual(values = c("TRUE" = "red","FALSE" = "black",
+                               "Acidobacteriota"=mycolors[1],
+                               "Actinobacteriota"=mycolors[2],
+                               "Armatimonadota"=mycolors[3],
+                               "Bacteroidota"=mycolors[4],
+                               "Chloroflexi"=mycolors[5],
+                               "Crenarchaeota" =mycolors[6],
+                               "Desulfobacterota"=mycolors[7],
+                               "Entotheonellaeota"=mycolors[8],
+                               "Firmicutes"=mycolors[9],
+                               "Gemmatimonadota"=mycolors[10],
+                               "Methylomirabilota"   =mycolors[11],
+                               "Myxococcota"    =mycolors[12],
+                               "NB1-j" =mycolors[13],
+                               "Nitrospirota"=mycolors[14],
+                               "Planctomycetota"=mycolors[15],
+                               "Proteobacteria"   =mycolors[16],
+                               "RCP2-54"    =mycolors[17],
+                               "Verrucomicrobiota" =mycolors[18]),
+                    # breaks = sort(unique(mb_bar$Sig_loading)))+
+                    breaks = sort(unique(mb_bar$Phylum)))+
+                    #guide = "none")+
+  theme(strip.text.x = element_text(size = 14))+
+  theme(axis.title =element_text(size=14))+
+  theme(plot.title  = element_text(hjust = 0.5))+
+  theme(legend.key = element_rect(fill = "white", colour = "black"))+
+  scale_x_discrete(limits=levels(mb_bar$Microbiome_Index))+
+  guides(fill=guide_legend(nrow=3,byrow=TRUE))
+
+p_mbbar
+
+
+loading_type <- case_when(cpmd$v[,1]==0 & pmd_t$v[,1]!=0 ~ "target only",
+                          cpmd$v[,1]!=0 & pmd_t$v[,1]==0 ~ "contrastive only",
+                          cpmd$v[,1]==0 & pmd_t$v[,1]==0 ~ "none",
+                          cpmd$v[,1]!=0 & pmd_t$v[,1]!=0 ~ "both")
+heat_dat <- Yt[,loading_type != "none"]
+loading_type <- loading_type[loading_type != "none"]
+Heatmap(heat_dat, row_split = ifelse(df_score[,c("cluster")]==1,"Cluster 1", "Cluster 2"), cluster_rows = TRUE,
+        cluster_columns = TRUE, column_split = loading_type, show_row_names = FALSE, show_column_names = FALSE, name = " std\n Expression")
+Heatmap(heat_dat, row_split = df_score[,c("GrowthCondtion")], cluster_rows = TRUE, cluster_columns = TRUE, column_split = loading_type,show_row_names = FALSE, show_column_names = FALSE, name = " std\n Expression")
+
+
+knitr::kable(mbgroup[cpmd$v[,1]!=0,3:7], caption = "Contrastive")
+knitr::kable(mbgroup[pmd_t$v[,1]!=0,3:7], caption = "High NUE only")
+
+  
+```
+
+
+<!-- #### 3. Illustration of cPCA wrt MANOVA -->
+
+<!-- We checked the scPCA of microbiome data with factor nitrogen, block and genotype. -->
+
+<!-- The proportion of significant mbs for the whole samples with respect to block and nitrogen interaction is 0.288, genotype and nitrogen interaction is 0. -->
+
+<!-- The proportion of significant mbs for the treatment samples with respect to block  is 0.385, genotype and nitrogen interaction is 0. -->
+
+<!-- The proportion of significant mbs for the control samples with respect to block is 0.372, genotype and nitrogen interaction is 0. -->
+
+<!-- The treatment group is the lowN group while the control group is the highN group. -->
+
+<!-- Since the genotype has no effects in both treatment and control group, we would not expect any separation between genotypes. Since the nitrogen and block interaction effect is large for whole data, and block effect is large for both treatment and control group, we would expect separation between different blocks in treatment sPCA and scPCA. -->
+
+<!-- However, there are other variations that dominant the treatment sPCA and we do not know what they are. As a result, we cannot see separation between blocks on treatment sPCA score plot. -->
+
+
+<!-- With $\gamma$ = 1 for contrasting the control group, we can see much more clear separation between blocks. This is because we remove the unknown variation. And due to the interaction between the nitrogen and block, the block effect is preserved and we can distinguish them on the scPCA score plot. -->
+
+<!-- In addition, we can check the feature loadings to see which mbs contributing to the block effect. -->
+
+
+<!-- ```{r large harvest illustration of cPCA, eval = FALSE, echo = FALSE} -->
+<!-- covariates <- covariates_eff -->
+<!-- trt <- covariates$Eff_dry >= 0.85 -->
+<!-- Xt <- scale(mb_ancom1[trt,], center = TRUE, scale = TRUE) -->
+<!-- Xc <- scale(mb_ancom1[!trt,], center = TRUE, scale = TRUE) -->
+<!-- covariates_t <- covariates[trt,] -->
+<!-- covariates_c <- covariates[!trt,] -->
+
+
+<!-- eta_tuning_general(Xt,Xc, sparse_ctst = NULL, sparse_trt = NULL, km_cluster = 2, ckm_cluster = 2) -->
+
+<!-- res_mb <- cPCA(Xt, Xc, sparse_ctst = NULL, sparse_trt = NULL, eta = 4) -->
+
+<!-- PCt <- res_mb$PCt -->
+<!-- PCa <- res_mb$PCa -->
+<!-- cPC <- res_mb$cPC -->
+<!-- Ut <- res_mb$Ut -->
+<!-- cU <- res_mb$cU -->
+
+
+<!-- df_score <- data.frame(PC1 = cPC[,1], PC2 = cPC[,2], -->
+<!--                         covariates_t, -->
+<!--                         cluster = kmeans(cPC[,1:2], centers = 2)$cluster) -->
+<!-- df_score_t <- data.frame( -->
+<!--                         PC1 = PCt[,1], PC2 = PCt[,2], -->
+<!--                         covariates_t, -->
+<!--                         cluster = kmeans(cPC[,1:2], centers = 2)$cluster) -->
+<!-- df_score_c <- data.frame( -->
+<!--                         PC1 = PCa[,1], PC2 = PCa[,2], -->
+<!--                         covariates_c) -->
+<!-- cP <- ggplot(df_score)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, shape = factor(cluster), color = GrowthCondtion))+ -->
+<!--   labs(title = "contrastive") -->
+<!-- Pt <- ggplot(df_score_t)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, shape = factor(cluster), color = GrowthCondtion))+ -->
+<!--   labs(title = "treatment") -->
+<!-- Pc <- ggplot(df_score_c)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color = GrowthCondtion))+ -->
+<!--   labs(title = "control") -->
+<!-- ggarrange(Pc, Pt, cP, common.legend = T, legend = "bottom", nrow = 1) -->
+<!-- PUt1 <- ggplot(data.frame(index = 1:nrow(Ut), Ut1 = Ut[,1]))+ -->
+<!--   geom_point(aes(x=index, y=Ut1, color = abs(Ut1) > 0.1))+ -->
+<!--   ylim(-0.15,0.15)+ -->
+<!--   labs(title="trt PCA eigenvector 1") -->
+<!-- PUt2 <- ggplot(data.frame(index = 1:nrow(Ut), Ut2 = Ut[,2]))+ -->
+<!--   geom_point(aes(x=index, y=Ut2, color = abs(Ut2) > 0.1))+ -->
+<!--   ylim(-0.15,0.15)+ -->
+<!--   labs(title = "trt PCA eigenvector 2") -->
+<!-- PcU1 <- ggplot(data.frame(index = 1:nrow(cU), cU1 = cU[,1]))+ -->
+<!--   geom_point(aes(x=index, y=cU1, color = abs(cU1) > 0.1))+ -->
+<!--   ylim(-0.15,0.15)+ -->
+<!--   labs(title = "contrastive PCA eigenvector 1") -->
+<!-- PcU2 <- ggplot(data.frame(index = 1:nrow(cU), cU2 = cU[,2]))+ -->
+<!--   geom_point(aes(x=index, y=cU2,color = abs(cU2) > 0.1))+ -->
+<!--   ylim(-0.15,0.15)+ -->
+<!--   labs(title = "contrastive PCA eigenvector 2") -->
+<!-- print(ggarrange(PUt1, PUt2, PcU1, PcU2, nrow=2, ncol=2,  common.legend = TRUE)) -->
+
+
+<!-- # 5.7 score scatter continuous interested regression -->
+<!-- cat("\n") -->
+<!-- interested_y <- "biomass" -->
+<!-- predictor <- "PC1" -->
+<!-- cat(paste(interested_y, "~cpmd_mb_score in Contrastive", sep = "")) -->
+<!-- summary(score_reg(x = data.frame(x = df_score[,predictor]), -->
+<!--                   y = df_score[,interested_y], -->
+<!--                   plot=F, title = paste("Contrastive, color is ", interested_y, sep = ""))) -->
+<!-- cat(paste(interested_y, "~cpmd_mb_score in Treatment", sep = "")) -->
+<!-- summary(score_reg(x = data.frame(x = df_score_t[,predictor]),y = df_score_t[,interested_y], -->
+<!--                   plot = F, title = paste("Trt only, color is ", interested_y, sep = ""))) -->
+<!-- cat(paste(interested_y, "~cpmd_mb_score in Control", sep = "")) -->
+<!-- summary(score_reg(x = data.frame(x = df_score_c[,predictor]), y = df_score_c[,interested_y], -->
+<!--                   plot = F, title = paste("Control only, color is ", interested_y, sep = ""))) -->
+
+<!-- p_reg <- ggplot(data = data.frame(df_score[, c(predictor,"Genotype",interested_y)]), -->
+<!--                 aes_string(x = predictor,y = interested_y))+ -->
+<!--   geom_point(aes( color = Genotype))+  geom_smooth(method = "lm", se = TRUE)+ -->
+<!--   labs(title = "Contrastive") -->
+
+<!-- p_reg_t <- ggplot(data = data.frame(df_score_t[, c(predictor,"Genotype",interested_y)]), -->
+<!--                 aes_string(x = predictor,y = interested_y))+ -->
+<!--   geom_point(aes( color = Genotype))+  geom_smooth(method = "lm", se = TRUE)+ -->
+<!--   labs(title = "Treatment only") -->
+<!-- p_reg_c <- ggplot(data = data.frame(df_score_c[, c(predictor,"Genotype",interested_y)]), -->
+<!--                 aes_string(x = predictor,y = interested_y))+ -->
+<!--   geom_point(aes( color = Genotype))+  geom_smooth(method = "lm", se = TRUE)+ -->
+<!--   labs(title = "Control only") -->
+<!-- ggarrange(p_reg, p_reg_t, p_reg_c, common.legend = T, legend = "bottom", nrow=1, align = "hv") -->
+
+
+<!-- ``` -->
+
+## Small Harvest 
+
+#### 1. Data description: three genotypes (E14, E17, G1), two growth condition (WW, WS), three collection dates (70717, 80117, 82817). The Date effect is the major variation. 
+
+#### 2. Goal: We use samples grown from water stressed condition (WS) as target group, and well watered samples as ancillary group, and apply s3CA to metabolome and microbiome data.
+
+```{r SH read in data, eval=TRUE, echo=FALSE}
+load("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/SmallHarvest/GroupSparseCCA/Drought analysis/SH_Drought_102_341_468_wRep.RData")
+
+# Reorder by group information
+mtbgroup <- mtb_group[order(mtb_group$Superclass),]
+mbgroup <- mb_group[order(mb_group$phylum),]
+
+mtb <- mtb[,mtbgroup$mtb]
+mb <- mb[,mbgroup$OTU]
+
+# Check align mtb and mb
+covariates <- meta
+rownames(covariates) <- meta$Barcode
+covariates$Date <- factor(covariates$Date, levels = c(70717, 80117, 82817), labels = c("July07","Aug01","Aug28"))
+
+# Transformation
+mtb_log <- log(mtb + 1)
+mb_ancom1 <- ancom1(mb + 1)
+```
+
+
+```{r s3CA on small harvest data, eval=TRUE, echo=FALSE}
+#### 1. Choose correlation or covariance ####
+# Use correlation matrix or covariance matrix
+cormat <- TRUE
+#### 2. Choose conditions ####
+a_ind <- covariates$Treatment == "WW"
+t_ind <- covariates$Treatment == "WS"
+
+X_ind <- 1:ncol(mtb_log)
+Y_ind <- 1:ncol(mb_ancom1)
+
+Xa <- scale(mtb_log[a_ind,X_ind], scale = cormat)
+Ya <- scale(mb_ancom1[a_ind,Y_ind], scale = cormat)
+Xt <- scale(mtb_log[t_ind,X_ind], scale = cormat)
+Yt <- scale(mb_ancom1[t_ind,Y_ind], scale = cormat)
+
+p <- ncol(Xa)
+q <- ncol(Ya)
+na <- nrow(Xa)
+nt <- nrow(Xt)
+Kmax <- min(p, q)
+covariates_a <- covariates[rownames(Xa),]
+covariates_t <- covariates[rownames(Xt),]
+
+#### 3. s3CA  ####
+res <- cCCA(Xa = Xa, Ya = Ya, Xt = Xt, Yt = Yt, eta = NULL, sparse_ctst = 0.2, sparse_trt = 0.2, sparse_ctrl = 0.2)
+cpmd <- res$CCA_ctst
+pmd_t <- res$CCA_trt
+pmd_c <- res$CCA_ctrl
+# contrastive score df 
+df_score <- data.frame(X_C1 = Xt%*%cpmd$u[,1],
+                       X_C2 = Xt%*%cpmd$u[,2],
+                       Y_C1 = Yt%*%cpmd$v[,1],
+                       Y_C2 = Yt%*%cpmd$v[,2],
+                       covariates_t)
+
+df_score$cluster <- factor(kmeans(df_score[,c("X_C1","X_C2")], centers = 2)$cluster)
+
+# treatment score df
+df_score_t <- data.frame(X_C1 =  Xt%*%pmd_t$u[,1], X_C2 =  Xt%*%pmd_t$u[,2],
+                         Y_C1 =  Yt%*%pmd_t$v[,1], Y_C2 =  Yt%*%pmd_t$v[,2],
+                         covariates_t)
+
+# control score df
+df_score_a <- data.frame(X_C1 =  Xa%*%pmd_c$u[,1], X_C2 =  Xa%*%pmd_c$u[,2],
+                         Y_C1 =  Ya%*%pmd_c$v[,1], Y_C2 =  Ya%*%pmd_c$v[,2],
+                         covariates_a)
+
+```
+
+
+#### 3. Finding 1: From the score plots below, we found WW samples from Aug and July are distant, the major variation comes from the difference between Aug and July. For WS samples, the major variation comes from the difference between the three dates. Compared with WW samples, the different between Aug01 and Aug28 is unique to WS, difference between July07 and Aug28 are shared.
+
+#### By contrasting, the shared variation is removed, so that samples from July 07 and Aug 28 are mixed, while the unique variation is revealed, WS samples from Aug01 and Aug28 are separated. 
+
+#### We then check the loadings for microbes and metabolites contribution to the first contrastive component or the target only component. They are totally different sets of features, and from the heatmap of their expression, we see feature with non-zero loadings from contrastive analysis have different mean between two Aug date, while features with non-zero loadings from the target only analysis have different mean between the three dates. 
+
+
+```{r SH verification , eval=TRUE, echo=FALSE}
+#### 4. Visualization ####
+p_score_subg <- ggplot(df_score)+
+  geom_point(aes(x = X_C1, y = Y_C1, color = factor(Date)), size=4)+
+  labs(x = "Xu", y = "Yv", color = "Date", title = "Contrastive")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")
+
+p_score_t_subg <-  ggplot(df_score_t)+
+  geom_point(aes(x = X_C1, y = Y_C1, color = factor(Date)), size=4)+
+  labs(x = "Xu", y = "Yv", color = "Date", title = "WS")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")
+
+p_score_a_subg <-  ggplot(df_score_a)+
+  geom_point(aes(x = X_C1, y = Y_C1, color = factor(Date)), size=4)+
+  labs(x = "Xu", y = "Yv", color = "Date", title = "WW")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")
+
+
+ggarrange(p_score_a_subg, p_score_t_subg, p_score_subg,  common.legend = TRUE, legend = "bottom", nrow=1)
+
+
+nb.cols <- 15
+mycolors <- colorRampPalette(brewer.pal(20, "Set3"))(nb.cols)
+mtb_bar_t <- data.frame(Loadings=c(pmd_t$u[,1]),
+                        Superclass=rep(mtbgroup$Superclass,1),
+                        Metabolites_Index=1:ncol(Xt),
+                        Unique = (pmd_t$u[,1] !=0 & cpmd$u[,1]==0),
+                        Analysis = "Target")
+mtb_bar_t$min=rep(c(0,cumsum(table(mtb_bar_t$Superclass))[1:(nb.cols-1)])+0.5,table(mtb_bar_t$Superclass))
+mtb_bar_t$max=rep(c(cumsum(table(mtb_bar_t$Superclass))[1:nb.cols])+0.5,table(mtb_bar_t$Superclass))
+mtb_bar_ctst <- data.frame(Loadings=cpmd$u[,1],
+                          Superclass=rep(mtbgroup$Superclass,1),
+                          Metabolites_Index=1:ncol(Xt),
+                          Unique = (pmd_t$u[,1] ==0 & cpmd$u[,1]!=0),
+                          Analysis = "Contrastive")
+mtb_bar_ctst$min=rep(c(0,cumsum(table(mtb_bar_ctst$Superclass))[1:(nb.cols-1)])+0.5,table(mtb_bar_ctst$Superclass))
+mtb_bar_ctst$max=rep(c(cumsum(table(mtb_bar_ctst$Superclass))[1:nb.cols])+0.5,table(mtb_bar_ctst$Superclass))
+
+mtb_bar <- rbind(mtb_bar_t, mtb_bar_ctst)
+
+
+p_mtbbar <- ggplot(mtb_bar,aes(x = Metabolites_Index , y = Loadings, fill = Unique)) +
+  geom_rect(data = mtb_bar,aes(xmin = min, xmax = max, ymin = -Inf, ymax =Inf, fill = Superclass),show.legend = F)+
+  theme_minimal()+
+  labs(title="")+
+  facet_wrap(vars(Analysis), nrow = 2)+
+  geom_bar(aes(x = Metabolites_Index , y = Loadings),position = "dodge", stat = "identity", show.legend = T)+
+  theme(legend.title = element_blank(), legend.position = "top",legend.text = element_text( size = 8))+
+  theme(axis.text.x = element_blank())+
+  scale_fill_manual(values = c("TRUE" = "red","FALSE" = "black",
+                               "Alkaloids and derivatives"=mycolors[1],
+                               "Benzenoids"=mycolors[2],
+                               "Carboxylic acids and derivatives"=mycolors[3],
+                               "Homogeneous non-metal compounds"=mycolors[4],
+                               "Lignans, neolignans and related compounds" =mycolors[5],
+                               "Lipids and lipid-like molecules"=mycolors[6],
+                               "Nucleosides, nucleotides, and analogues"=mycolors[7],
+                               "Organic acids and derivatives" =mycolors[8],
+                               "Organic compounds" =mycolors[9],
+                               "Organic nitrogen compounds" =mycolors[10],
+                               "Organic oxygen compounds" =mycolors[11],
+                               "Organoheterocyclic compounds"=mycolors[12],
+                               "Organooxygen compounds"=mycolors[13],
+                               "Others"=mycolors[14],
+                               "Phenylpropanoids and polyketides"=mycolors[15]),
+                    breaks = sort(unique(mtb_bar$Superclass)))+
+                    #guide = "none")+
+  theme(strip.text.x = element_text(size = 10))+
+  theme(axis.title =element_text(size=14))+
+  theme(plot.title  = element_text(hjust = 0.5))+
+  guides(linetype = guide_legend(override.aes = list(fill = c("black","white"))))+
+  theme(legend.key = element_rect(fill = "white", colour = "black"))
+
+p_mtbbar
+
+
+loading_type <- case_when(cpmd$u[,1]==0 & pmd_t$u[,1]!=0 ~ "target only",
+                          cpmd$u[,1]!=0 & pmd_t$u[,1]==0 ~ "contrastive only",
+                          cpmd$u[,1]==0 & pmd_t$u[,1]==0 ~ "none",
+                          cpmd$u[,1]!=0 & pmd_t$u[,1]!=0 ~ "both")
+heat_dat <- Xt[,loading_type != "none"]
+loading_type <- loading_type[loading_type != "none"]
+Heatmap(heat_dat, row_split = df_score[,c("Date")], cluster_rows = TRUE, cluster_columns = TRUE, column_split = loading_type,show_row_names = FALSE, show_column_names = FALSE, name = " std\n Expression")
+
+knitr::kable(mtbgroup[cpmd$u[,1]!=0, 2:5], caption = "Contrastive")
+knitr::kable(mtbgroup[pmd_t$u[,1]!=0, 2:5], caption = "Target only")
+
+
+nb.cols <- 17
+mycolors <- colorRampPalette(brewer.pal(8, "Set3"))(nb.cols)
+mb_bar_t <- data.frame(Loadings=c(pmd_t$v[,1]),
+                       Phylum=rep(mbgroup$phylum,1),
+                       Microbes_Index=rep(1:468,1),
+                       Unique = (pmd_t$v[,1] !=0 & cpmd$v[,1]==0),
+                       Analysis = "Target")
+mb_bar_t$min=rep(c(0,cumsum(table(mb_bar_t$Phylum))[1:(nb.cols-1)])+0.5,table(mb_bar_t$Phylum))
+mb_bar_t$max=rep(c(cumsum(table(mb_bar_t$Phylum))[1:nb.cols])+0.5,table(mb_bar_t$Phylum))
+mb_bar_ctst <- data.frame(Loadings=cpmd$v[,1],
+                          Phylum=rep(mbgroup$phylum,1),
+                          Microbes_Index=rep(1:468,1),
+                          Unique = (pmd_t$v[,1] ==0 & cpmd$v[,1]!=0),
+                          Analysis = "Contrastive")
+mb_bar_ctst$min=rep(c(0,cumsum(table(mb_bar_ctst$Phylum))[1:(nb.cols-1)])+0.5,table(mb_bar_ctst$Phylum))
+mb_bar_ctst$max=rep(c(cumsum(table(mb_bar_ctst$Phylum))[1:nb.cols])+0.5,table(mb_bar_ctst$Phylum))
+
+mb_bar <- rbind(mb_bar_t, mb_bar_ctst)
+
+
+
+p_mbbar <- ggplot(mb_bar,aes(x =Microbes_Index , y = Loadings, fill=Unique)) +
+  geom_rect(data = mb_bar,aes(xmin = min, xmax = max, ymin = -Inf, ymax =Inf, fill = Phylum),show.legend = F)+
+  theme_minimal()+
+  labs(title="")+
+  geom_bar(aes(x =Microbes_Index , y = Loadings),position = "dodge", stat = "identity", show.legend = T)+
+  theme(legend.title = element_blank(), legend.position = "top",legend.text = element_text( size = 8))+
+  theme(axis.text.x = element_blank())+
+  facet_wrap(vars(Analysis), nrow = 2 )+
+  scale_fill_manual(values = c("TRUE" = "red","FALSE" = "black",
+                               "Acidobacteria"=mycolors[1],
+                               "Actinobacteria"=mycolors[2],
+                               "Armatimonadetes"=mycolors[3],
+                               "Bacteroidetes"=mycolors[4],
+                               "candidate_division_WPS"=mycolors[5],
+                               "Chloroflexi" =mycolors[6],
+                               "Cyanobacteria"=mycolors[7],
+                               "Firmicutes"=mycolors[8],
+                               "Gemmatimonadetes"=mycolors[9],
+                               "Ignavibacteriae"=mycolors[10],
+                               "Nitrospirae"   =mycolors[11],
+                               "Planctomycetes"    =mycolors[12],
+                               "Poribacteria" =mycolors[13],
+                               "Proteobacteria"=mycolors[14],
+                               "Tenericutes"=mycolors[15],
+                               "Thaumarchaeota"   =mycolors[16],
+                               "Verrucomicrobia"    =mycolors[17]),
+                    # breaks = sort(unique(mb_bar$Sig_loading)))+
+                    breaks = sort(unique(mb_bar$Phylum)))+
+                    #guide = "none")+
+  theme(strip.text.x = element_text(size = 14))+
+  theme(axis.title =element_text(size=14))+
+  theme(plot.title  = element_text(hjust = 0.5))+
+  theme(legend.key = element_rect(fill = "white", colour = "black"))+
+  scale_x_discrete(limits=levels(mb_bar$Microbiome_Index))+
+  guides(fill=guide_legend(nrow=2,byrow=TRUE))
+
+p_mbbar
+
+
+loading_type <- case_when(cpmd$v[,1]==0 & pmd_t$v[,1]!=0 ~ "target only",
+                          cpmd$v[,1]!=0 & pmd_t$v[,1]==0 ~ "contrastive only",
+                          cpmd$v[,1]==0 & pmd_t$v[,1]==0 ~ "none",
+                          cpmd$v[,1]!=0 & pmd_t$v[,1]!=0 ~ "both")
+heat_dat <- Yt[,loading_type != "none"]
+loading_type <- loading_type[loading_type != "none"]
+Heatmap(heat_dat, row_split = df_score[,c("Date")], cluster_rows = TRUE, cluster_columns = TRUE, column_split = loading_type,show_row_names = FALSE, show_column_names = FALSE, name = " std\n Expression")
+
+
+knitr::kable(mbgroup[cpmd$v[,1]!=0, 2:5], caption = "Contrastive")
+knitr::kable(mbgroup[pmd_t$v[,1]!=0, 2:5], caption = "Target only")
+
+  
+
+```
+
+
+
+#### 4. Finding 2: We found when focusing on the top two contrastive component with respect to metabolites, there are two clusters that are not consistent with any known factors, thus may related to some pathways. 
+
+
+```{r SH new cluster, eval = TRUE, echo=FALSE }
+p_score_subg <- ggplot(df_score)+
+  geom_point(aes(x = X_C1, y = X_C2, color = factor(cluster),shape = Date), size=4)+
+  labs(x = "Xu1", y = "Xu2", color = "Contrastive clusters", title = "Contrastive")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")+
+  geom_text(x=-6, y=4, label=paste0("ARI:", round(aricode::ARI(df_score$cluster, df_score[, "Date"]), 2)))
+
+p_score_t_subg <-  ggplot(df_score_t)+
+  geom_point(aes(x = X_C1, y = X_C2, color = factor(df_score$cluster), shape = Date), size=4)+
+  labs(x = "Xu1", y = "Xu2", color = "contrastive clusters", title = "WS")+
+  theme_bw()+
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),
+        legend.position = "right")
+
+
+
+ggarrange(p_score_t_subg, p_score_subg,   common.legend = TRUE, legend = "bottom", nrow=1)
+
+nb.cols <- 15
+mycolors <- colorRampPalette(brewer.pal(20, "Set3"))(nb.cols)
+mtb_bar_t <- data.frame(Loadings=c(pmd_t$u[,2]),
+                        Superclass=rep(mtbgroup$Superclass,1),
+                        Metabolites_Index=1:ncol(Xt),
+                        Unique = (pmd_t$u[,2] !=0 & cpmd$u[,2]==0),
+                        Analysis = "Target")
+mtb_bar_t$min=rep(c(0,cumsum(table(mtb_bar_t$Superclass))[1:(nb.cols-1)])+0.5,table(mtb_bar_t$Superclass))
+mtb_bar_t$max=rep(c(cumsum(table(mtb_bar_t$Superclass))[1:nb.cols])+0.5,table(mtb_bar_t$Superclass))
+mtb_bar_ctst <- data.frame(Loadings=cpmd$u[,2],
+                          Superclass=rep(mtbgroup$Superclass,1),
+                          Metabolites_Index=1:ncol(Xt),
+                          Unique = (pmd_t$u[,2] ==0 & cpmd$u[,2]!=0),
+                          Analysis = "Contrastive")
+mtb_bar_ctst$min=rep(c(0,cumsum(table(mtb_bar_ctst$Superclass))[1:(nb.cols-1)])+0.5,table(mtb_bar_ctst$Superclass))
+mtb_bar_ctst$max=rep(c(cumsum(table(mtb_bar_ctst$Superclass))[1:nb.cols])+0.5,table(mtb_bar_ctst$Superclass))
+
+mtb_bar <- rbind(mtb_bar_t, mtb_bar_ctst)
+
+
+p_mtbbar <- ggplot(mtb_bar,aes(x = Metabolites_Index , y = Loadings, fill = Unique)) +
+  geom_rect(data = mtb_bar,aes(xmin = min, xmax = max, ymin = -Inf, ymax =Inf, fill = Superclass),show.legend = F)+
+  theme_minimal()+
+  labs(title="")+
+  facet_wrap(vars(Analysis), nrow = 2)+
+  geom_bar(aes(x = Metabolites_Index , y = Loadings),position = "dodge", stat = "identity", show.legend = T)+
+  theme(legend.title = element_blank(), legend.position = "top",legend.text = element_text( size = 8))+
+  theme(axis.text.x = element_blank())+
+  scale_fill_manual(values = c("TRUE" = "red","FALSE" = "black",
+                               "Alkaloids and derivatives"=mycolors[1],
+                               "Benzenoids"=mycolors[2],
+                               "Carboxylic acids and derivatives"=mycolors[3],
+                               "Homogeneous non-metal compounds"=mycolors[4],
+                               "Lignans, neolignans and related compounds" =mycolors[5],
+                               "Lipids and lipid-like molecules"=mycolors[6],
+                               "Nucleosides, nucleotides, and analogues"=mycolors[7],
+                               "Organic acids and derivatives" =mycolors[8],
+                               "Organic compounds" =mycolors[9],
+                               "Organic nitrogen compounds" =mycolors[10],
+                               "Organic oxygen compounds" =mycolors[11],
+                               "Organoheterocyclic compounds"=mycolors[12],
+                               "Organooxygen compounds"=mycolors[13],
+                               "Others"=mycolors[14],
+                               "Phenylpropanoids and polyketides"=mycolors[15]),
+                    breaks = sort(unique(mtb_bar$Superclass)))+
+                    #guide = "none")+
+  theme(strip.text.x = element_text(size = 10))+
+  theme(axis.title =element_text(size=14))+
+  theme(plot.title  = element_text(hjust = 0.5))+
+  guides(linetype = guide_legend(override.aes = list(fill = c("black","white"))))+
+  theme(legend.key = element_rect(fill = "white", colour = "black"))
+
+p_mtbbar
+
+
+loading_type <- case_when(cpmd$u[,2]==0 & pmd_t$u[,2]!=0 ~ "target only",
+                          cpmd$u[,2]!=0 & pmd_t$u[,2]==0 ~ "contrastive only",
+                          cpmd$u[,2]==0 & pmd_t$u[,2]==0 ~ "none",
+                          cpmd$u[,2]!=0 & pmd_t$u[,2]!=0 ~ "both")
+heat_dat <- Xt[,loading_type != "none"]
+loading_type <- loading_type[loading_type != "none"]
+Heatmap(heat_dat, row_split = df_score[,c("cluster")], cluster_rows = TRUE,
+        cluster_columns = TRUE, column_split = loading_type, show_row_names = FALSE, show_column_names = FALSE, name = " std\n Expression")
+# Heatmap(heat_dat, row_split = df_score[,c("Date")], cluster_rows = TRUE, cluster_columns = TRUE, column_split = loading_type,show_row_names = FALSE, show_column_names = FALSE, name = " std\n Expression")
+
+knitr::kable(mtbgroup[cpmd$u[,2]!=0, 2:5], caption = "Contrastive")
+knitr::kable(mtbgroup[pmd_t$u[,2]!=0, 2:5], caption = "Target only")
+
+
+# nb.cols <- 17
+# mycolors <- colorRampPalette(brewer.pal(8, "Set3"))(nb.cols)
+# mb_bar_t <- data.frame(Loadings=c(pmd_t$v[,1]),
+#                        Phylum=rep(mbgroup$phylum,1),
+#                        Microbes_Index=rep(1:468,1),
+#                        Unique = (pmd_t$v[,1] !=0 & cpmd$v[,1]==0),
+#                        Analysis = "Target")
+# mb_bar_t$min=rep(c(0,cumsum(table(mb_bar_t$Phylum))[1:(nb.cols-1)])+0.5,table(mb_bar_t$Phylum))
+# mb_bar_t$max=rep(c(cumsum(table(mb_bar_t$Phylum))[1:nb.cols])+0.5,table(mb_bar_t$Phylum))
+# mb_bar_ctst <- data.frame(Loadings=cpmd$v[,1],
+#                           Phylum=rep(mbgroup$phylum,1),
+#                           Microbes_Index=rep(1:468,1),
+#                           Unique = (pmd_t$v[,1] ==0 & cpmd$v[,1]!=0),
+#                           Analysis = "Contrastive")
+# mb_bar_ctst$min=rep(c(0,cumsum(table(mb_bar_ctst$Phylum))[1:(nb.cols-1)])+0.5,table(mb_bar_ctst$Phylum))
+# mb_bar_ctst$max=rep(c(cumsum(table(mb_bar_ctst$Phylum))[1:nb.cols])+0.5,table(mb_bar_ctst$Phylum))
+# 
+# mb_bar <- rbind(mb_bar_t, mb_bar_ctst)
+# 
+
+
+# p_mbbar <- ggplot(mb_bar,aes(x =Microbes_Index , y = Loadings, fill=Unique)) +
+#   geom_rect(data = mb_bar,aes(xmin = min, xmax = max, ymin = -Inf, ymax =Inf, fill = Phylum),show.legend = F)+
+#   theme_minimal()+
+#   labs(title="")+
+#   geom_bar(aes(x =Microbes_Index , y = Loadings),position = "dodge", stat = "identity", show.legend = T)+
+#   theme(legend.title = element_blank(), legend.position = "top",legend.text = element_text( size = 8))+
+#   theme(axis.text.x = element_blank())+
+#   facet_wrap(vars(Analysis))+
+#   scale_fill_manual(values = c("TRUE" = "red","FALSE" = "black",
+#                                "Acidobacteria"=mycolors[1],
+#                                "Actinobacteria"=mycolors[2],
+#                                "Armatimonadetes"=mycolors[3],
+#                                "Bacteroidetes"=mycolors[4],
+#                                "candidate_division_WPS"=mycolors[5],
+#                                "Chloroflexi" =mycolors[6],
+#                                "Cyanobacteria"=mycolors[7],
+#                                "Firmicutes"=mycolors[8],
+#                                "Gemmatimonadetes"=mycolors[9],
+#                                "Ignavibacteriae"=mycolors[10],
+#                                "Nitrospirae"   =mycolors[11],
+#                                "Planctomycetes"    =mycolors[12],
+#                                "Poribacteria" =mycolors[13],
+#                                "Proteobacteria"=mycolors[14],
+#                                "Tenericutes"=mycolors[15],
+#                                "Thaumarchaeota"   =mycolors[16],
+#                                "Verrucomicrobia"    =mycolors[17]),
+#                     # breaks = sort(unique(mb_bar$Sig_loading)))+
+#                     breaks = sort(unique(mb_bar$Phylum)))+
+#                     #guide = "none")+
+#   theme(strip.text.x = element_text(size = 14))+
+#   theme(axis.title =element_text(size=14))+
+#   theme(plot.title  = element_text(hjust = 0.5))+
+#   theme(legend.key = element_rect(fill = "white", colour = "black"))+
+#   scale_x_discrete(limits=levels(mb_bar$Microbiome_Index))+
+#   guides(fill=guide_legend(nrow=2,byrow=TRUE))
+# 
+# p_mbbar
+
+
+# loading_type <- case_when(cpmd$v[,1]==0 & pmd_t$v[,1]!=0 ~ "target only",
+#                           cpmd$v[,1]!=0 & pmd_t$v[,1]==0 ~ "contrastive only",
+#                           cpmd$v[,1]==0 & pmd_t$v[,1]==0 ~ "none",
+#                           cpmd$v[,1]!=0 & pmd_t$v[,1]!=0 ~ "both")
+# heat_dat <- Yt[,loading_type != "none"]
+# loading_type <- loading_type[loading_type != "none"]
+# Heatmap(heat_dat, row_split = df_score[,c("cluster")], cluster_rows = TRUE,
+#         cluster_columns = TRUE, column_split = loading_type, show_row_names = FALSE, show_column_names = FALSE, name = " std\n Expression")
+# Heatmap(heat_dat, row_split = df_score[,c("Date")], cluster_rows = TRUE, cluster_columns = TRUE, column_split = loading_type,show_row_names = FALSE, show_column_names = FALSE, name = " std\n Expression")
+# 
+
+
+
+  
+```
+
+
+<!-- #### 3. Illustration of cPCA wrt MANOVA: nested effects (not use) -->
+
+<!-- Recall we have Treatment (WS, WW), Date(20170717, 20170801, 20170828), Genotype(E14, E17, G1) and Rep-block(1,2,3,5,6,8). -->
+
+<!-- We select samples with Date(20170717, 20170828), Genotype(E14, E17), and ignore Treatment(too small effect). And we let: -->
+<!-- A - treatment factor: Genotype, -->
+<!-- B - hidden factor of interest: Date, -->
+<!-- C - nuisance factor: Rep -->
+
+<!-- We have the following requirements: -->
+
+<!-- 1. C is the main effect in treatment group (Genotype = E14) -->
+<!-- 2. B is the second main effect.  -->
+<!-- 3. Some AB interaction -->
+<!-- 4. No AC interaction -->
+
+<!-- So we do differential expression analysis on each microbe using A, B, C with full model (include all interactions). And we select microbes that are significant in C, but not significant in AC. This results in 111 microbes. In this way the proportion of significant features with respect to A, B, C, AB, AC are 0.14, 0.47, 1, 0.06, 0.  -->
+
+<!-- Finally we do cPCA on these features and samples and PCA on treatment group. -->
+
+<!-- Conclusions: -->
+<!-- 1. PC1 can separate C-Rep, but not B-Date -->
+<!-- 2. PC2 can separate B-Date. -->
+<!-- 3. cPC1 can separate B-Date, but not C-Rep. -->
+
+<!-- 1 tells that block effect is the major effect in treatment group, covers date effect. Only look at PC1 cannot identify date groups. 3 tells by contrast two treatment groups, block effect is removed and we can clearly see the date groups on the first component of cPCA. -->
+
+
+<!-- ```{r small harvest illustration of cPCA, eval = FALSE, echo = FALSE} -->
+<!-- load("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/SmallHarvest/GroupSparseCCA/Drought analysis/SH_Drought_102_341_468_wRep.RData") -->
+
+<!-- # Reorder by group information -->
+<!-- mtbgroup <- mtb_group[order(mtb_group$Superclass),] -->
+<!-- mbgroup <- mb_group[order(mb_group$phylum),] -->
+
+<!-- mtb <- mtb[,mtbgroup$mtb] -->
+<!-- mb <- mb[,mbgroup$OTU] -->
+
+<!-- # Check align mtb and mb -->
+<!-- rownames(mtb) == rownames(mb) -->
+
+<!-- # Transformation -->
+<!-- mtb_log <- log(mtb + 1) -->
+<!-- mb_ancom1 <- ancom1(mb) -->
+
+<!-- # check MANOVA results, aim is C > B, AB != 0, AC == 0 -->
+<!-- covariates <- meta -->
+<!-- sample_sel <- covariates$Genotype != "G1" & covariates$Date != 80117 -->
+<!-- X <- mb_ancom1[sample_sel,] -->
+<!-- covariates <- covariates[sample_sel,] -->
+<!-- covariates$Rep <- factor(ifelse(covariates$Rep <= 3, "small","large")) -->
+<!-- covariates$Date <- factor(covariates$Date, levels = c(70717, 82817), labels = c("July07","Aug28")) -->
+<!-- A <- "Genotype" -->
+<!-- B <- "Date" -->
+<!-- C <- "Rep" -->
+<!-- AB <- paste(A,":", B, sep = "") -->
+<!-- AC <- paste(A,":", C, sep = "") -->
+<!-- BC <- paste(B,":", C, sep = "") -->
+<!-- feature_sel <- DE_prop_full(X, design = dplyr::select(covariates, c("Genotype", "Date", "Rep")), interested = C) -->
+<!-- X <- X[,feature_sel] -->
+<!-- ## check A, B, C, AB, AC -->
+<!-- DE_prop_full(X, design = dplyr::select(covariates, c("Genotype", "Date", "Rep")), interested = c(C)) -->
+<!-- ## remove AC sig features -->
+<!-- X_sig <- dplyr::select(X, -c("OTU2438", "OTU2051")) -->
+<!-- ## final MANOVA sig results -->
+<!-- DE_prop_full(X_sig, design = dplyr::select(covariates, c("Genotype", "Date", "Rep")), interested = c(C)) -->
+
+<!-- # cPCA -->
+<!-- trt <- covariates$Genotype == "E14" -->
+<!-- Xt <- scale(X_sig[trt,], center = TRUE, scale = TRUE) -->
+<!-- Xc <- scale(X_sig[!trt,], center = TRUE, scale = TRUE) -->
+<!-- Ut <- eigen(cov(Xt))$vectors -->
+<!-- cU <- eigen(cov(Xt)-cov(Xc))$vectors -->
+<!-- print(eigen(cov(Xt)-cov(Xc))$values) -->
+<!-- PCt <- (Xt)%*%Ut[,1:2] -->
+<!-- cPC <- (Xt)%*%cU[,1:2] -->
+<!-- plot_data <- data.frame(cPC1 = cPC[,1], cPC2 = cPC[,2], -->
+<!--                         PC1 = PCt[,1], PC2 = PCt[,2], -->
+<!--                         Genotype = covariates$Genotype[trt], -->
+<!--                         Date = covariates$Date[trt], -->
+<!--                         Rep = covariates$Rep[trt]) -->
+<!-- cP <- ggplot(plot_data)+ -->
+<!--   geom_point(aes(x=cPC1, y=cPC2, color= Date, shape = Rep))+ -->
+<!--   labs(title = "contrastive") -->
+<!-- Pt <- ggplot(plot_data)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color= Date, shape = Rep))+ -->
+<!--   labs(title = "treatment") -->
+<!-- PUt1 <- ggplot(data.frame(index = 1:nrow(Ut), Ut1 = Ut[,1]))+ -->
+<!--       geom_point(aes(x=index, y=Ut1))+ -->
+<!--       ylim(-0.8,0.8)+ -->
+<!--       labs(title="trt PCA eigenvector 1") -->
+<!-- PUt2 <- ggplot(data.frame(index = 1:nrow(Ut), Ut2 = Ut[,2]))+ -->
+<!--       geom_point(aes(x=index, y=Ut2))+ -->
+<!--       ylim(-0.8,0.8)+ -->
+<!--       labs(title = "trt PCA eigenvector 2") -->
+<!-- PcU1 <- ggplot(data.frame(index = 1:nrow(cU), cU1 = cU[,1]))+ -->
+<!--       geom_point(aes(x=index, y=cU1))+ -->
+<!--       ylim(-0.8,0.8)+ -->
+<!--       labs(title = "contrastive PCA eigenvector 1") -->
+<!-- PcU2 <- ggplot(data.frame(index = 1:nrow(cU), cU2 = cU[,2]))+ -->
+<!--       geom_point(aes(x=index, y=cU2))+ -->
+<!--       ylim(-0.8,0.8)+ -->
+<!--       labs(title = "contrastive PCA eigenvector 2") -->
+<!-- print(ggarrange(Pt,cP, PUt1, PUt2, PcU1, PcU2, nrow=3, ncol=2,  common.legend = TRUE)) -->
+
+
+<!-- ``` -->
+<!-- #### 3. Illustration of cPCA wrt MANOVA: prefer to use -->
+
+<!-- Recall that we have Treatment, Genotype, Block and Date factors for small harvest data. To decide how to illustrate the relationship between MANOVA and cPCA, we do DEA with full model for each of the features and record the number of significant features for each factor. Note that the BH adjustment is applied for every factor. -->
+
+<!-- * All samples DEA: -->
+
+<!-- | factor   | metabolites | microbes | -->
+<!-- |----------|-------------|----------| -->
+<!-- |Treatment | 2           | 3        | -->
+<!-- |Genotype  | 67          | 4        | -->
+<!-- |Block     | 52          | 74       | -->
+<!-- |Date      | 295         | 331      | -->
+<!-- |Trt:Geno  | 0           | 0        | -->
+<!-- |Trt:Block | 0           | 0        | -->
+<!-- |Trt:Date  | 74          | 6        | -->
+<!-- |Geno:Block| 0           | 0        | -->
+<!-- |Geno:Date | 0           | 0        | -->
+<!-- |Block:Date| 0           | 0        | -->
+
+<!-- * Water Stressed samples DEA -->
+
+<!-- | factor   | metabolites | microbes | -->
+<!-- |----------|-------------|----------| -->
+<!-- |Genotype  | 8           | 1       | -->
+<!-- |Block     | 0           | 12       | -->
+<!-- |Date      | 226         | 278      | -->
+<!-- |Geno:Block| 0           | 0        | -->
+<!-- |Geno:Date | 0           | 0        | -->
+<!-- |Block:Date| 0           | 0        | -->
+
+
+<!-- * Well watered samples DEA -->
+
+<!-- | factor   | metabolites | microbes | -->
+<!-- |----------|-------------|----------| -->
+<!-- |Genotype  | 15          | 1        | -->
+<!-- |Block     | 0           | 19       | -->
+<!-- |Date      | 283         | 249      | -->
+<!-- |Geno:Block| 0           | 0        | -->
+<!-- |Geno:Date | 0           | 0        | -->
+<!-- |Block:Date| 0           | 1        | -->
+
+
+<!-- It's obvious that some metabolites are associated with Genotype but none of them are associated with Block. This might because metabolites are not sensitive to the environmental change. On the opposite, some microbes are associated with Block but none of them are associated with Genotype. In addition, Date effect is the strongest given most of the features are DEA with respect to Date. -->
+
+<!-- We are interested in microbiome data. The treatment group is WS group while the control group is WW group. To validate that contrastive PCA can remove nuisance factor and reveal hidden factor, we select two groups of microbes.  -->
+
+<!-- The first group includes microbes that are DE wrt Block in WS samples but NOT DE in WW samples. The second group includes microbes that are DE wrt Date in both WS and WW group but are NOT DE wrt Treatment:Date in all samples. And then we remove the common microbes from both group of microbes. This gives 5 mbs in the first group and 181 mbs in the second group. Due to the unbalance of number of features in the two groups, we select 10 mbs from the second group with the smallest pvalue. -->
+
+<!-- As a result, the first 5 mbs are associated with Block in WS samples, but not assiciated with Block in WW samples. This means by contrasting, Block effect cannot be removed. The last 10 mbs are associated with Date in both WW and WS samples but not in all samples, this mean contrasting can remove the Date effects.  -->
+
+<!-- In addition, by checking the MANOVA test results, Date effect is stronger than Block effect in WS samples. -->
+
+<!-- So, we expect Date to be the dominant effect in WS group and to see the separation of samples collected from different date on the first PC. And the loadings of the first PC are mostly non-zero on the last 10 mbs. -->
+
+<!-- By contrasting, we expect more clear separation of samples located at different blocks on the first contrastive PC, and the loadings of this PC are mostly non-zero on the first 5 mbs. -->
+
+<!-- To quantify the separation, we apply kmeans clustering to estimate two clusters and use the factor levels as true labels to compute ARI. Higher ARI means more clear separation. -->
+
+<!-- To clearly see the loadings, althouth we have 15 microbes, we still adopt sparse cPCA.  -->
+
+<!-- On treatment score plot, we did see samples collected on Aug 1st 2017 are separated from the samples collected on other dates. But no separation pattern between samples located at different block.  -->
+
+<!-- With $\gamma=1.5$, we can see on cPC1, the samples with different dates are mixed, while samples located at blocks with larger indices are mostly on the right and that with smaller indices are mostly on the left of the x-axis.  -->
+
+<!-- This can be validated using ARI. The ARI wrt Date reduces from 0.85 on treatment score plot to 0.09 on contrastive score plot while the ARI wrt Block increases from 0.01 on treatment score plot to 0.20 on contrastive score plot. -->
+
+<!-- The loading scatter plots also provides same evidence. For first treatment PC, there are only three non-zero loadings and all of them are larger than 0.2 and are from the last 10 microbes that are associated with Date significantly. For the first contrastive PC, there are also three non-zero loadings, two of them are larger than 0.2 but these two loadings are from the first 5 microbes that are associated with Block significantly.  -->
+
+<!-- ```{r small harvest illustration of cPCA seperate features, eval = FALSE, echo = FALSE} -->
+<!-- load("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/SmallHarvest/GroupSparseCCA/Drought analysis/SH_Drought_102_341_468_wRep.RData") -->
+
+<!-- # Reorder by group information -->
+<!-- mtbgroup <- mtb_group[order(mtb_group$Superclass),] -->
+<!-- mbgroup <- mb_group[order(mb_group$phylum),] -->
+
+<!-- mtb <- mtb[,mtbgroup$mtb] -->
+<!-- mb <- mb[,mbgroup$OTU] -->
+
+<!-- # Check align mtb and mb -->
+<!-- # rownames(mtb) == rownames(mb) -->
+
+<!-- # Transformation -->
+<!-- mtb_log <- log(mtb + 1) -->
+<!-- mb_ancom1 <- ancom1(mb) -->
+
+<!-- # check MANOVA results -->
+<!-- covariates <- meta -->
+<!-- sample_sel <- 1:nrow(mtb_log) -->
+<!-- X <- mb_ancom1[sample_sel,] -->
+<!-- covariates <- covariates[sample_sel,] -->
+<!-- covariates$Rep <- factor(ifelse(covariates$Rep <= 3, "Small","Large")) -->
+<!-- covariates$Date <- factor(covariates$Date, levels = c(70717, 80117,82817), labels = c("July07","Aug01","Aug28")) -->
+<!-- A <- "Treatment" -->
+<!-- B <- "Rep" -->
+<!-- C <- "Genotype" -->
+<!-- D <- "Date" -->
+<!-- sel_var <- c(A, B, C, D) -->
+<!-- sel_var_sub <- c(B, C, D) -->
+<!-- AB <- paste(A,":", B, sep = "") -->
+<!-- AC <- paste(A,":", C, sep = "") -->
+<!-- AD <- paste(A,":", D, sep = "") -->
+<!-- BC <- paste(B,":", C, sep = "") -->
+<!-- BD <- paste(B,":", D, sep = "") -->
+<!-- CD <- paste(C,":", D, sep = "") -->
+
+
+<!-- trt <- covariates$Treatment == "WS" -->
+<!-- Xt <- scale(X[trt,], center = TRUE, scale = TRUE) -->
+<!-- Xc <- scale(X[!trt,], center = TRUE, scale = TRUE) -->
+<!-- covariates_t <- covariates[trt,] -->
+<!-- covariates_c <- covariates[!trt,] -->
+
+<!-- feature_1B <- DE_prop_full(Xt, design = dplyr::select(covariates_t, all_of(sel_var_sub)), interested = B) -->
+<!-- feature_2B <- DE_prop_full(Xc, design = dplyr::select(covariates_c, all_of(sel_var_sub)), interested = B) -->
+<!-- first_set <- intersect(feature_1B, setdiff(colnames(X), feature_2B)) -->
+<!-- feature_1C <- DE_prop_full(Xt, design = dplyr::select(covariates_t, all_of(sel_var_sub)), interested = D) -->
+<!-- feature_2C <- DE_prop_full(Xc, design = dplyr::select(covariates_c, all_of(sel_var_sub)), interested = D) -->
+<!-- feature_AC <- DE_prop_full(X, design = dplyr::select(covariates, all_of(sel_var)), interested = AD) -->
+<!-- second_set <- setdiff(intersect(feature_1C, feature_2C), feature_AC) -->
+
+<!-- feature_forB <- setdiff(first_set, second_set) -->
+<!-- feature_forC <- setdiff(second_set, first_set) -->
+<!-- X_sig <- X[,c(feature_forB, feature_forC[172:181])] -->
+
+<!-- Xt <- scale(X_sig[trt,], center = TRUE, scale = TRUE) -->
+<!-- Xc <- scale(X_sig[!trt,], center = TRUE, scale = TRUE) -->
+
+<!-- manova_t <- manova(Xt~Genotype+Rep+Date, data =covariates_t) -->
+<!-- manova_c <- manova(Xc~Genotype+Rep+Date, data = covariates_c) -->
+<!-- cat("Treatment MANOVA: \n") -->
+<!-- summary(manova_t) -->
+<!-- cat("Control MANOVA: \n") -->
+<!-- summary(manova_c) -->
+
+
+<!-- gamma <- 1.5 -->
+<!-- trt.cv <- SPC.cv(Xt, sumabsvs=seq(1.2, sqrt(ncol(Xt)), len=6), trace = FALSE) -->
+<!-- trt.spca <- SPC(Xt, sumabsv=trt.cv$bestsumabs, K=4, trace = FALSE)  -->
+<!-- ctst.cv <- SPC.cv(cov(Xt)-gamma*cov(Xc), sumabsvs=seq(1.2, sqrt(ncol(Xt)), len=6), trace = FALSE) -->
+<!-- ctst.spca <- SPC(cov(Xt)-gamma*cov(Xc), sumabsv=ctst.cv$bestsumabs, K=4, trace = FALSE) -->
+
+<!-- PCt <- Xt%*%trt.spca$v[,1:2] -->
+<!-- cPC <- Xt%*%ctst.spca$v[,1:2] -->
+<!-- Ut <- trt.spca$v -->
+<!-- cU <- ctst.spca$v -->
+
+<!-- plot_data <- data.frame(cPC1 = cPC[,1], cPC2 = cPC[,2], -->
+<!--                         PC1 = PCt[,1], PC2 = PCt[,2], -->
+<!--                         Genotype = covariates$Genotype[trt], -->
+<!--                         Date = ifelse(covariates$Date[trt] == "Aug01", "Aug01", "Others"), -->
+<!--                         Rep = covariates$Rep[trt]) -->
+<!-- cP <- ggplot(plot_data)+ -->
+<!--   geom_point(aes(x=cPC1, y=cPC2, color= Rep, shape = Date))+ -->
+<!--   labs(title = "contrastive") -->
+<!-- Pt <- ggplot(plot_data)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color= Rep, shape = Date ))+ -->
+<!--   labs(title = "treatment") -->
+<!-- PUt1 <- ggplot(data.frame(index = 1:nrow(Ut), Ut1 = Ut[,1]))+ -->
+<!--   geom_point(aes(x=index, y=Ut1))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title="trt PCA eigenvector 1") -->
+<!-- PUt2 <- ggplot(data.frame(index = 1:nrow(Ut), Ut2 = Ut[,2]))+ -->
+<!--   geom_point(aes(x=index, y=Ut2))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title = "trt PCA eigenvector 2") -->
+<!-- PcU1 <- ggplot(data.frame(index = 1:nrow(cU), cU1 = cU[,1]))+ -->
+<!--   geom_point(aes(x=index, y=cU1))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title = "contrastive PCA eigenvector 1") -->
+<!-- PcU2 <- ggplot(data.frame(index = 1:nrow(cU), cU2 = cU[,2]))+ -->
+<!--   geom_point(aes(x=index, y=cU2))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title = "contrastive PCA eigenvector 2") -->
+<!-- print(ggarrange(Pt,cP, PUt1, PUt2, PcU1, PcU2, nrow=3, ncol=2,  common.legend = TRUE)) -->
+
+<!-- paste("ARI for clusters and ", "Date", " variable in treamtnet is: ", round(spec_clust(plot_data$PC1, group =plot_data$Date), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Date", " variable in contrast is: ", round(spec_clust(plot_data$cPC1, group =plot_data$Date), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Rep", " variable in treamtnet is: ", round(spec_clust(plot_data$PC1, group =plot_data$Rep), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Rep", " variable in contrast is: ", round(spec_clust(plot_data$cPC1, group =plot_data$Rep), 5), sep = "") -->
+
+
+<!-- ``` -->
+
+
+<!-- ## Covid Data -->
+
+<!-- ```{r covid data cPMD analysis, eval = FALSE, echo = FALSE} -->
+<!-- # read data -->
+<!-- protein_dat = read.csv("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/Contrastive/Useful datasets/COVID19 Omics/proteomics_allmeta.csv",header = T) -->
+<!-- mtb_dat = read.csv("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/Contrastive/Useful datasets/COVID19 Omics/metabolomics_allmeta.csv",header = T) -->
+
+<!-- # drop no gender info sample -->
+<!-- protein_dat <- protein_dat[protein_dat$Gender %in% c("F","M"),] -->
+<!-- mtb_dat <- mtb_dat[mtb_dat$Gender %in% c("F","M"),] -->
+
+<!-- # check sample alignment -->
+<!-- protein_dat$sample_id == mtb_dat$sample_id -->
+
+<!-- # select data for use -->
+<!-- selection <- mtb_dat$covid == 1 | (mtb_dat$covid == 0 & mtb_dat$icu == 0) -->
+<!-- selection <- 1:nrow(protein_dat) -->
+<!-- protein <- protein_dat[selection,] -->
+<!-- covariates <- protein[,1:32] -->
+<!-- protein_count <- protein[,33:ncol(protein)] -->
+
+<!-- mtb <- mtb_dat[selection,] -->
+<!-- mtb_count <- mtb[,33:ncol(mtb)] -->
+
+<!-- covariates$covid <- factor(covariates$COVID, levels = c(0,1), labels = c("Non-Covid", "Covid")) -->
+<!-- covariates$icu <- factor(covariates$ICU_1, levels = c(0, 1), labels = c("Non-ICU","ICU")) -->
+<!-- covariates$age_bi <- factor(ifelse(covariates$Age_less_than_90 <= 60, "Young", "Old")) -->
+<!-- covariates$platelet_bi <- factor(ifelse(covariates$Platelet_K.uL < 300, "Less", "Normal")) -->
+<!-- covariates$ensino_bi <- factor(ifelse(covariates$Eosinophils_percent < 1, "Normal", "Over")) -->
+<!-- covariates$gender <- factor(covariates$Gender) -->
+<!-- covariates$hospfree_bi <- ifelse(covariates$Hospital_free_days_45 <= 20, "Serious", "Light") -->
+
+<!-- # transformation -->
+<!-- mtb_log <- log(mtb_count + 1) -->
+<!-- protein_log <- log(protein_count + 1) -->
+
+<!-- # remove one protein with NA element called Q02818.C9JKZ2.H7BZI1 -->
+<!-- protein_log <- protein_log[, colnames(protein_log) != "Q02818.C9JKZ2.H7BZI1"] -->
+<!-- ``` -->
+
+<!-- #### Case1: Non-covid as control, covid as treatment, ICU should be treated as nuisance -->
+
+<!-- Form two group t test for Platelet_K.ul in covid and non-covid groups, the pvalue 0.002397 shows that the platelet count is different for patients with covid from those without covid. To find the underlying mechanism, we have two assumptions: -->
+
+<!-- 1. The differentially expressed metabolites and proteins with respect to the platelet count are different for covid and non-covid group. -->
+
+<!-- 2. The interaction between metabolites and proteins in covid and non-covid group are different, and this difference is correlated with platelet count. -->
+
+<!-- For check first assumption, we did DEA for each feature and platelet count in covid, non-covid, combined group separately. It turns out there are very few DE features. And it becomes not very possible that the the DE features changes from non-covid to covid patients. -->
+
+
+<!-- To check the second assumption, we did PMD on the covariance matrix between metabolites and proteins in each disease group. The first component with respect to protein (Yv) is not associated with platelet count significantly in either group, but dominated by the difference between ICU and non-ICU group. This may suggest that the variation associated with platelet count is masked by the variation associated with ICU status.  -->
+
+<!-- From another perspective, we want to summarize the difference of metabolites and proteins association between covid group and non-covid group into several latent factors which are associated with platelet count significantly. And we are interested in which mtb and proteins contribute to this latent factor. The conclusion might be useful in the sense that the change of interaction between mtb and proteins from non-covid patients to covid patients is dominated by a latent pathway which is associated with platelet count, and we found several mtb and proteins that contribute to this pathway.  -->
+
+<!-- So we want to contrast the covid group to the non-covid group to remove the ICU variation and check whether the latent pathway that dominate the interaction change is associated with platelet count significantly.  -->
+
+<!-- It turns out that by contrastive PMD, the first component with respect to protein is much more significantly associated with the platelet count. And the samples with different ICU status are mixed. Thus the conclusion holds. -->
+
+<!-- ```{r cPMD on covid data case 1, echo = FALSE, eval = FALSE} -->
+<!-- #### 1. Choose correlation or covariance #### -->
+<!-- # Use correlation matrix or covariance matrix -->
+<!-- cormat <- TRUE -->
+<!-- #### 2. Choose conditions #### -->
+<!-- # Take Covid as conditions  -->
+<!-- Xa <- scale(mtb_log[covariates$covid == "Non-Covid", ], scale = cormat) -->
+<!-- Ya <- scale(protein_log[covariates$covid == "Non-Covid",], scale = cormat) -->
+<!-- Xt <- scale(mtb_log[covariates$covid != "Non-Covid",], scale = cormat) -->
+<!-- Yt <- scale(protein_log[covariates$covid != "Non-Covid",], scale = cormat) -->
+
+
+<!-- covariates_a <- covariates[rownames(Xa),] -->
+<!-- covariates_t <- covariates[rownames(Xt),] -->
+
+<!-- eta_tuning_general(Xt = Yt, Xa = Ya) -->
+
+<!-- res <- cPCA(Xt=Xt, Xa=Xa, eta=1, sparse_ctst = 0.2, sparse_ctrl = 0.2, sparse_trt = 0.2) -->
+
+<!-- df_score_t <- data.frame(PC1 = res$PCt[,1], PC2 = res$PCt[,2], -->
+<!--                          covariates_t) -->
+
+<!-- df_score_a <- data.frame(PC1 = res$PCa[,1], PC2 = res$PCa[,2], -->
+<!--                          covariates_a) -->
+
+<!-- df_score <- data.frame(PC1 = res$cPC[,1], PC2 = res$cPC[,2], -->
+<!--                          covariates_t) -->
+
+
+<!-- df_score$cluster <-  kmeans(df_score[,c("PC1","PC2")], centers = 2)$cluster -->
+<!-- df_score_t$cluster <- kmeans(df_score_t[,c("PC1","PC2")], centers = 2)$cluster -->
+<!-- df_score_a$cluster <- kmeans(df_score_a[,c("PC1","PC2")], centers = 2)$cluster -->
+
+
+<!-- cat("\n") -->
+<!-- nuisance <- "icu"  -->
+<!-- p_score_subg <- score_scatter(df_score, "PC1","PC2", nuisance, "Contrastive") -->
+<!-- p_score_t_subg <- score_scatter(df_score_t, "PC1","PC2", nuisance, "COVID only") -->
+<!-- p_score_a_subg <- score_scatter(df_score_a, "PC1","PC2", nuisance, "NonCOVID only") -->
+<!-- ggarrange(p_score_a_subg, p_score_t_subg, p_score_subg,  common.legend = TRUE, legend = "bottom", nrow=1) -->
+
+<!-- paste("ARI for clusters and ", nuisance, " variable in Contrastive is: ", round(aricode::ARI(df_score$cluster, df_score[, nuisance]), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", nuisance, " variable in Treatment is: ", round(aricode::ARI(df_score_t$cluster, df_score_t[, nuisance]), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", nuisance, " variable in Control is: ", round(aricode::ARI(df_score_a$cluster, df_score_a[, nuisance]), 5), sep = "") -->
+<!-- # continuous response systematic evaluation -->
+<!-- interested_y <- "Platelet_K.uL" -->
+<!-- cont_resp_eval(cont_t = covariates_t[,interested_y], cont_c = covariates_c[,interested_y],  -->
+<!--                Xt = Xt, Xc = Xc, Yt = Yt, Yc = Yc) -->
+
+
+
+<!-- #### check proportion of DE features wrt subgroup in treatment group -->
+<!-- # cat(paste("Proportion of DE mtbs wrt ICU in Covid group: ", DE_prop(Xt, design = select(covariates_t, -c("sample_id", "covid")), interested = "icu"), sep = "")) -->
+<!-- # cat(paste("Proportion of DE proteins wrt ICU in Covid group: ", DE_prop(Yt, design = select(covariates_t, -c("sample_id", "covid")), interested = "icu"), sep = "")) -->
+<!-- # cat(paste("Proportion of DE mtbs wrt AGE in Covid group: ", DE_prop(Xt, design = select(covariates_t, -c("sample_id", "covid")), interested = "age_less_than_90"), sep = "")) -->
+<!-- # cat(paste("Proportion of DE proteins wrt AGE in Covid group: ", DE_prop(Yt, design = select(covariates_t, -c("sample_id", "covid")), interested = "age_less_than_90"), sep = "")) -->
+<!-- #  -->
+<!-- # cat(paste("Proportion of DE mtbs wrt ICU in Non-Covid group: ", DE_prop(Xc, design = select(covariates_c, -c("sample_id", "covid")), interested = "icu"), sep = "")) -->
+<!-- # cat(paste("Proportion of DE proteins wrt ICU in Non-Covid  group: ", DE_prop(Yc, design = select(covariates_c, -c("sample_id", "covid")), interested = "icu"), sep = "")) -->
+<!-- # cat(paste("Proportion of DE mtbs wrt AGE in Non-Covid  group: ", DE_prop(Xc, design = select(covariates_c, -c("sample_id", "covid")), interested = "age_less_than_90"), sep = "")) -->
+<!-- # cat(paste("Proportion of DE proteins wrt AGE in Non-Covid  group: ", DE_prop(Yc, design = select(covariates_c, -c("sample_id", "covid")), interested = "age_less_than_90"), sep = "")) -->
+
+
+<!-- #### 3. Whether or not group center the other covariate #### -->
+<!-- # group centering to remove the other factor effects  -->
+<!-- if(group_center){ -->
+<!--   group_c <- covariates_c$icu -->
+<!--   group_t <- covariates_t$icu -->
+<!--   g_cen <- g_center(Xc, Yc, Xt, Yt, group_c, group_t) -->
+<!--   Xc <- g_cen$Xc -->
+<!--   Xt <- g_cen$Xt -->
+<!--   Yc <- g_cen$Yc -->
+<!--   Yt <- g_cen$Yt -->
+<!-- } -->
+
+<!-- #### 4. cPMD  #### -->
+<!-- res_pmd <- tri_pmd(Xc = Xc, Xt = Xt, Yc = Yc, Yt = Yt, gamma_assign = gamma_assign) -->
+<!-- cpmd <- res_pmd$cpmd -->
+<!-- pmd_c <- res_pmd$pmd_c -->
+<!-- pmd_t <- res_pmd$pmd_t -->
+
+<!-- K_single <- 1 -->
+<!-- Wc <- Xc%*%as.matrix(cpmd$u[,K_single]) -->
+<!-- Zc <- Yc%*%as.matrix(cpmd$v[,K_single]) -->
+<!-- Wt <- Xt%*%as.matrix(cpmd$u[,K_single]) -->
+<!-- Zt <- Yt%*%as.matrix(cpmd$v[,K_single]) -->
+
+<!-- df_score <- data.frame(W = c(Wc, Wt), Z = c(Zc, Zt),  -->
+<!--                        X_C1 = c(Xc%*%as.matrix(cpmd$u[,1]), Xt%*%as.matrix(cpmd$u[,1])), -->
+<!--                        X_C2 = c(Xc%*%as.matrix(cpmd$u[,2]), Xt%*%as.matrix(cpmd$u[,2])), -->
+<!--                        Y_C1 = c(Yc%*%as.matrix(cpmd$v[,1]), Yt%*%as.matrix(cpmd$v[,1])), -->
+<!--                        Y_C2 = c(Yc%*%as.matrix(cpmd$v[,2]), Yt%*%as.matrix(cpmd$v[,2])), -->
+<!--                        Type = rep(c("Control","Treatment"), c(length(Wc), length(Wt))),  -->
+<!--                        rbind(covariates_c, covariates_t)) -->
+
+<!-- K_t <- K_single -->
+<!-- W_t <- Xt%*%as.matrix(pmd_t$u[,K_t]) -->
+<!-- Z_t<- Yt%*%as.matrix(pmd_t$v[,K_t]) -->
+
+<!-- df_score_t <- data.frame(W = W_t, Z = Z_t, -->
+<!--                          X_C1 =  Xt%*%pmd_t$u[,1], -->
+<!--                          X_C2 =  Xt%*%pmd_t$u[,2], -->
+<!--                          Y_C1 =  Yt%*%pmd_t$v[,1], -->
+<!--                          Y_C2 =  Yt%*%pmd_t$v[,2], -->
+<!--                          covariates_t) -->
+
+<!-- K_c <- K_single -->
+<!-- W_c <- Xc%*%as.matrix(pmd_c$u[,K_c]) -->
+<!-- Z_c <- Yc%*%as.matrix(pmd_c$v[,K_c]) -->
+
+<!-- df_score_c <- data.frame(W = W_c, Z = Z_c,   -->
+<!--                          X_C1 =  Xc%*%pmd_c$u[,1], -->
+<!--                          X_C2 =  Xc%*%pmd_c$u[,2], -->
+<!--                          Y_C1 =  Yc%*%pmd_c$v[,1], -->
+<!--                          Y_C2 =  Yc%*%pmd_c$v[,2], -->
+<!--                          covariates_c) -->
+
+
+<!-- #### 5. Visualization #### -->
+<!-- # # 5.1. heatmap -->
+<!-- # K_sel <- 4 -->
+<!-- # recons <- as.matrix(cpmd$u[,1:K_sel]%*%diag(cpmd$d[1:K_sel])%*%t(cpmd$v[,1:K_sel])) -->
+<!-- # colnames(recons) <- colnames(contrast) -->
+<!-- # rownames(recons) <- rownames(contrast) -->
+<!-- #  -->
+<!-- # p_trt <- heatmap_eval(A, title = "Treatment") -->
+<!-- # p_control <- heatmap_eval(B, title = "Control") -->
+<!-- # p_contrast <- heatmap_eval(contrast, title = "Contrast") -->
+<!-- # p_recons <- heatmap_eval(recons, title = "Low-dimensional approximation") -->
+<!-- #  -->
+<!-- # ggarrange(p_trt, p_control, p_contrast, p_recons, nrow = 1, ncol = 4, common.legend = T, legend = "bottom") -->
+
+
+<!-- # 5.2. scree -->
+<!-- p_scree <- ggplot(data = data.frame(Component = 1:Kmax, Variation = cpmd$d/sum(cpmd$d)) )+ -->
+<!--   geom_point(aes(x = Component, y = Variation))+ -->
+<!--   theme_bw() -->
+
+<!-- # 5.3. covariance discrepancy -->
+<!-- K <- 30 -->
+<!-- Wc <- Xc%*%cpmd$u[,1:K] -->
+<!-- Zc <- Yc%*%cpmd$v[,1:K] -->
+<!-- Wt <- Xt%*%cpmd$u[,1:K] -->
+<!-- Zt <- Yt%*%cpmd$v[,1:K] -->
+
+<!-- cor_disc <- data.frame(Component = rep(1:K, 2), -->
+<!--                        Cov = c(diag(cov(Wc, Zc)), diag(cov(Wt, Zt))), -->
+<!--                        Type = rep(c("Control", "Treatment"), each = K)) -->
+<!-- p_disc <- ggplot(data = cor_disc) + -->
+<!--   geom_line(aes(x = Component, y = Cov, color = Type))+ -->
+<!--   labs(y = "Cov(Xu, Yv)")+ -->
+<!--   theme_bw() -->
+
+<!-- # 5.4. score scatter  -->
+<!-- p_score_ct <- score_scatter(df_score, "W", "Z", "Type", title = "") -->
+<!-- p_score_ct_fit <- score_scatter(df_score, "W", "Z", "Type", title = "")+ -->
+<!--   stat_smooth(method = "lm", formula = y ~ x, geom = "smooth", se = FALSE)+ -->
+<!--   facet_wrap(vars(Type)) -->
+
+
+<!-- ggarrange(p_scree, p_disc, p_score_ct_fit, common.legend = T, legend = "bottom", nrow = 1, widths = c(1,1,2)) -->
+
+<!-- # 5.5. score scatter nuisance removal -->
+<!-- nuisance <-  "icu" -->
+<!-- p_score_subg <- score_scatter(df_score[df_score$Type == "Treatment",], "W", "Z", nuisance, "Contrastive") -->
+<!-- p_score_subg_X <- score_scatter(df_score[df_score$Type == "Treatment",], "X_C1", "X_C2", nuisance, "Contrastive") -->
+<!-- p_score_subg_Y <- score_scatter(df_score[df_score$Type == "Treatment",], "Y_C1", "Y_C2", nuisance, "Contrastive") -->
+
+<!-- p_score_t_subg <- score_scatter(df_score_t, "W", "Z", nuisance, "Trt only") -->
+<!-- p_score_t_subg_X <- score_scatter(df_score_t, "X_C1", "X_C2", nuisance, "Trt only") -->
+<!-- p_score_t_subg_Y <- score_scatter(df_score_t, "Y_C1", "Y_C2", nuisance, "Trt only") -->
+
+<!-- ggarrange(p_score_t_subg, p_score_subg,  common.legend = TRUE, legend = "bottom") -->
+<!-- ggarrange(p_score_t_subg_X, p_score_subg_X,  common.legend = TRUE, legend = "bottom") -->
+<!-- ggarrange(p_score_t_subg_Y, p_score_subg_Y,  common.legend = TRUE, legend = "bottom") -->
+
+<!-- paste("ARI for clusters and ", nuisance, " variable in Control is: ", round(spec_clust(cbind(Xc%*%pmd_c$u[,1], Yc%*%pmd_c$v[,1]), group = df_score_c[,nuisance]), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", nuisance, " variable in Treatment is: ", round(spec_clust(cbind(Xt%*%pmd_t$u[,1], Yt%*%pmd_t$v[,1]), group = df_score_t[,nuisance]), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", nuisance, " variable in Contrastive is: ", round(spec_clust(cbind(Xt%*%cpmd$u[,1], Yt%*%cpmd$v[,1]), group = df_score[df_score$Type == "Treatment",nuisance]), 5), sep = "") -->
+
+<!-- # 5.6 score scatter interested separation -->
+<!-- interested <- "platelet_bi" -->
+<!-- p_score_subg_GS <- score_scatter(df_score[df_score$Type == "Treatment",], "W", "Z", interested, "Contrastive") -->
+<!-- p_score_subg_X_GS <- score_scatter(df_score[df_score$Type == "Treatment",], "X_C1", "X_C2", interested, "Contrastive") -->
+<!-- p_score_subg_Y_GS <- score_scatter(df_score[df_score$Type == "Treatment",], "Y_C1", "Y_C2", interested, "Contrastive") -->
+
+
+<!-- p_score_t_subg_GS <- score_scatter(df_score_t, "W", "Z", interested, "Trt only") -->
+<!-- p_score_t_subg_X_GS <- score_scatter(df_score_t, "X_C1", "X_C2", interested, "Trt only") -->
+<!-- p_score_t_subg_Y_GS <- score_scatter(df_score_t, "Y_C1", "Y_C2", interested, "Trt only") -->
+<!-- ggarrange(p_score_t_subg_GS, p_score_subg_GS,  common.legend = TRUE, legend = "bottom") -->
+<!-- ggarrange(p_score_t_subg_X_GS, p_score_subg_X_GS,  common.legend = TRUE, legend = "bottom") -->
+<!-- ggarrange(p_score_t_subg_Y_GS, p_score_subg_Y_GS,  common.legend = TRUE, legend = "bottom") -->
+
+<!-- paste("ARI for clusters and ", interested, " variable in Control is: ", round(spec_clust(cbind(Xc%*%pmd_c$u[,1], Yc%*%pmd_c$v[,1]), group = df_score_c[,interested]), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", interested, " variable in Treatment is: ", round(spec_clust(cbind(Xt%*%pmd_t$u[,1], Yt%*%pmd_t$v[,1]), group = df_score_t[,interested]), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", interested, " variable in Contrastive is: ", round(spec_clust(cbind(Xt%*%cpmd$u[,1], Yt%*%cpmd$v[,1]), group = df_score[df_score$Type == "Treatment",interested]), 5), sep = "") -->
+
+<!-- # 5.7 score scatter continuous interested regression -->
+<!-- interested_y <- "Platelet_K.uL" -->
+<!-- cat(paste(interested_y, "~cpmd_protein_score in Contrastive", sep = "")) -->
+<!-- summary(score_reg(x = data.frame(x = df_score[df_score$Type=="Treatment",c("Z")]), -->
+<!--                   y = df_score[df_score$Type=="Treatment",interested_y], -->
+<!--                   plot=F, title = paste("Contrastive, color is", interested_y))) -->
+<!-- cat(paste(interested_y, "~cpmd_protein_score in Treatment", sep = "")) -->
+<!-- summary(score_reg(x = data.frame(x = df_score_t[,c("Z")]),y = df_score_t[,interested_y], -->
+<!--                   plot = F, title = paste("Treatment, color is", interested_y))) -->
+<!-- cat(paste(interested_y, "~cpmd_protein_score in Control", sep = "")) -->
+<!-- summary(score_reg(x = data.frame(x = df_score_c[,"Z"]), y = df_score_c[,interested_y], -->
+<!--                   plot = F, title = paste("Control, color is", interested_y))) -->
+
+
+<!-- p_reg <- ggplot(data = data.frame(df_score[df_score$Type == "Treatment", c("Z", "W", "icu",interested_y)]), -->
+<!--                 aes_string(x = "Z",y = interested_y))+ -->
+<!--   geom_point(aes_string(color = "icu" ))+  geom_smooth(method = "lm", se = TRUE)+ -->
+<!--   labs(title = "Contrastive") -->
+<!-- p_reg_t <- ggplot(data = data.frame(df_score_t[, c("Z", "W", "icu",interested_y)]), -->
+<!--                 aes_string(x = "Z",y = interested_y))+ -->
+<!--   geom_point(aes_string(color = "icu" ))+  geom_smooth(method = "lm", se = TRUE)+ -->
+<!--   labs(title = "Treatment only") -->
+<!-- p_reg_c <- ggplot(data = data.frame(df_score_c[, c("Z", "W", "icu",interested_y)]), -->
+<!--                 aes_string(x = "Z",y = interested_y))+ -->
+<!--   geom_point(aes_string(color = "icu" ))+  geom_smooth(method = "lm", se = TRUE)+ -->
+<!--   labs(title = "Control only") -->
+
+<!-- ggarrange(p_reg, p_reg_t, p_reg_c, common.legend = T, legend = "bottom", nrow=1, align = "hv") -->
+
+
+
+
+<!-- ``` -->
+
+
+<!-- #### Case2: Only COVID, Non-ICU as control, ICU as treatment -->
+
+<!-- <!-- ####### tried before, nothing interested found. Non-covid, Non-ICU as control, Covid as treatment, ICU should be interested --> -->
+
+<!-- Same story as in last case but we are interested in only covid patients with different ICU status. -->
+
+<!-- ```{r cPMD on covid data case 2, eval = FALSE, echo = FALSE} -->
+<!-- #### 1. Choose correlation or covariance #### -->
+<!-- # Use correlation matrix or covariance matrix -->
+<!-- cormat <- TRUE -->
+<!-- #### 2. Choose conditions #### -->
+<!-- # Take Covid as conditions  -->
+<!-- Xa <- scale(mtb_log[covariates$covid == "Covid" & covariates$icu == "Non-ICU", ], scale = cormat) -->
+<!-- Ya <- scale(protein_log[covariates$covid == "Covid" & covariates$icu == "Non-ICU",], scale = cormat) -->
+<!-- Xt <- scale(mtb_log[covariates$covid == "Covid" & covariates$icu == "ICU",], scale = cormat) -->
+<!-- Yt <- scale(protein_log[covariates$covid == "Covid" & covariates$icu == "ICU",], scale = cormat) -->
+
+
+<!-- covariates_a <- covariates[rownames(Xa),] -->
+<!-- covariates_t <- covariates[rownames(Xt),] -->
+
+<!-- #### 4. s3CA  #### -->
+<!-- res <- cCCA(Xa = Xa, Ya = Ya, Xt = Xt, Yt = Yt, eta = NULL, sparse_ctst = 0.2, sparse_trt = 0.2, sparse_ctrl = 0.2) -->
+<!-- cpmd <- res$CCA_ctst -->
+<!-- pmd_t <- res$CCA_trt -->
+<!-- pmd_c <- res$CCA_ctrl -->
+<!-- # contrastive score df  -->
+<!-- df_score <- data.frame(X_C1 = Xt%*%cpmd$u[,1], -->
+<!--                        X_C2 = Xt%*%cpmd$u[,2], -->
+<!--                        Y_C1 = Yt%*%cpmd$v[,1], -->
+<!--                        Y_C2 = Yt%*%cpmd$v[,2], -->
+<!--                        covariates_t) -->
+
+
+<!-- df_score$cluster <- factor(kmeans(df_score[,c("X_C1","Y_C1")], centers = 2)$cluster) -->
+
+<!-- # treatment score df -->
+<!-- df_score_t <- data.frame(X_C1 =  Xt%*%pmd_t$u[,1], X_C2 =  Xt%*%pmd_t$u[,2], -->
+<!--                          Y_C1 =  Yt%*%pmd_t$v[,1], Y_C2 =  Yt%*%pmd_t$v[,2], -->
+<!--                          covariates_t) -->
+<!-- df_score_t$cluster <- factor(kmeans(df_score_t[,c("X_C1","Y_C1")], centers = 2)$cluster) -->
+<!-- # control score df -->
+<!-- df_score_a <- data.frame(X_C1 =  Xa%*%pmd_c$u[,1], X_C2 =  Xa%*%pmd_c$u[,2], -->
+<!--                          Y_C1 =  Ya%*%pmd_c$v[,1], Y_C2 =  Ya%*%pmd_c$v[,2], -->
+<!--                          covariates_a) -->
+<!-- df_score_a$cluster <- factor(kmeans(df_score_a[,c("X_C1","Y_C1")], centers = 2)$cluster) -->
+
+<!-- #### 5. Visualization #### -->
+<!-- # 5.5 score scatter nuisance removal  -->
+<!-- cat("\n") -->
+<!-- nuisance <- "ensino_bi"  -->
+<!-- p_score_subg <- score_scatter(df_score, "X_C1", "Y_C1", nuisance, "Contrastive") -->
+<!-- p_score_subg_X <- score_scatter(df_score, "X_C1", "X_C2", nuisance, "Contrastive") -->
+<!-- p_score_subg_Y <- score_scatter(df_score, "Y_C1", "Y_C2", nuisance, "Contrastive") -->
+
+<!-- p_score_t_subg <- score_scatter(df_score_t, "X_C1", "Y_C1", nuisance, "ICU only") -->
+<!-- p_score_t_subg_X <- score_scatter(df_score_t, "X_C1", "X_C2", nuisance, "ICU only") -->
+<!-- p_score_t_subg_Y <- score_scatter(df_score_t, "Y_C1", "Y_C2", nuisance, "ICU only") -->
+
+<!-- p_score_a_subg <- score_scatter(df_score_a, "X_C1", "Y_C1", nuisance, "NonICU only") -->
+<!-- p_score_a_subg_X <- score_scatter(df_score_a, "X_C1", "X_C2", nuisance, "NonICU only") -->
+<!-- p_score_a_subg_Y <- score_scatter(df_score_a, "Y_C1", "Y_C2", nuisance, "NonICU only") -->
+
+<!-- ggarrange(p_score_a_subg, p_score_t_subg, p_score_subg,  common.legend = TRUE, legend = "bottom", nrow=1) -->
+<!-- ggarrange(p_score_a_subg_X, p_score_t_subg_X, p_score_subg_X,  common.legend = TRUE, legend = "bottom", nrow=1) -->
+<!-- ggarrange(p_score_a_subg_Y, p_score_t_subg_Y, p_score_subg_Y,  common.legend = TRUE, legend = "bottom", nrow=1) -->
+
+<!-- paste("ARI for clusters and ", nuisance, " variable in Contrastive is: ", round(aricode::ARI(df_score$cluster, df_score[, nuisance]), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", nuisance, " variable in Treatment is: ", round(aricode::ARI(df_score_t$cluster, df_score_t[, nuisance]), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", nuisance, " variable in Control is: ", round(aricode::ARI(df_score_a$cluster, df_score_a[, nuisance]), 5), sep = "") -->
+
+<!-- # 5.6 score scatter interested separation -->
+<!-- cat("\n") -->
+<!-- interested <- "cluster" -->
+<!-- p_score_subg_GS <- score_scatter(df_score, "X_C1", "Y_C1", interested, "Contrastive") -->
+<!-- p_score_subg_X_GS <- score_scatter(df_score, "X_C1", "X_C2", interested, "Contrastive") -->
+<!-- p_score_subg_Y_GS <- score_scatter(df_score, "Y_C1", "Y_C2", interested, "Contrastive") -->
+
+
+<!-- p_score_t_subg_GS <- score_scatter(df_score_t, "X_C1", "Y_C1", interested, "Trt only") -->
+<!-- p_score_t_subg_X_GS <- score_scatter(df_score_t, "X_C1", "X_C2", interested, "Trt only") -->
+<!-- p_score_t_subg_Y_GS <- score_scatter(df_score_t, "Y_C1", "Y_C2", interested, "Trt only") -->
+
+<!-- p_score_a_subg_GS <- score_scatter(df_score_a, "X_C1", "Y_C1", interested, "Ctrl only") -->
+<!-- p_score_a_subg_X_GS <- score_scatter(df_score_a, "X_C1", "X_C2", interested, "Ctrl only") -->
+<!-- p_score_a_subg_Y_GS <- score_scatter(df_score_a, "Y_C1", "Y_C2", interested, "Ctrl only") -->
+
+<!-- ggarrange(p_score_a_subg_GS, p_score_t_subg_GS, p_score_subg_GS, nrow=1, common.legend = TRUE, legend = "bottom") -->
+<!-- ggarrange(p_score_a_subg_X_GS, p_score_t_subg_X_GS, p_score_subg_X_GS, nrow=1, common.legend = TRUE, legend = "bottom") -->
+<!-- ggarrange(p_score_a_subg_Y_GS, p_score_t_subg_Y_GS, p_score_subg_Y_GS, nrow=1,common.legend = TRUE, legend = "bottom") -->
+
+
+
+<!-- interested_y <- "Lymphocytes_percent" -->
+<!-- predictor <- "X_C1" -->
+<!-- # 5.7 score scatter continuous interested regression -->
+<!-- cat(paste(interested_y, "~ cpmd_score in Contrastive")) -->
+<!-- summary(score_reg(x = data.frame(x = df_score[,predictor]), -->
+<!--                   y = df_score[,interested_y], -->
+<!--                   plot = F, title = "Contrastive")) -->
+<!-- cat(paste(interested_y," ~ pmd_score wrt protein in Treatment")) -->
+<!-- summary(score_reg(x = data.frame(x = df_score_t[,predictor]), -->
+<!--                   y = df_score_t[,interested_y], -->
+<!--                   plot = F, title = "Trt only")) -->
+<!-- cat(paste(interested_y,"~ pmd_score wrt protein in Control")) -->
+<!-- summary(score_reg(x = data.frame(x = df_score_a[,predictor]),  -->
+<!--                   y = df_score_a[,interested_y], -->
+<!--                   plot = F, title = "Control only")) -->
+
+<!-- p_reg <- ggplot(data = data.frame(df_score[df_score$Type == "Treatment", c("Z",interested_y)]), -->
+<!--                 aes_string(x = "Z",y = interested_y))+ -->
+<!--   geom_point()+  geom_smooth(method = "lm", se = TRUE)+ -->
+<!--   labs(title = "Contrastive") -->
+
+<!-- p_reg_t <- ggplot(data = data.frame(df_score_t[, c("Z",interested_y)]), -->
+<!--                 aes_string(x = "Z",y = interested_y))+ -->
+<!--   geom_point()+  geom_smooth(method = "lm", se = TRUE)+ -->
+<!--   labs(title = "Treatment only") -->
+<!-- p_reg_c <- ggplot(data = data.frame(df_score_c[, c("Z",interested_y)]), -->
+<!--                 aes_string(x = "Z",y = interested_y))+ -->
+<!--   geom_point()+  geom_smooth(method = "lm", se = TRUE)+ -->
+<!--   labs(title = "Control only") -->
+
+<!-- ggarrange(p_reg, p_reg_t, p_reg_c, common.legend = T, legend = "bottom", nrow=1, align = "hv") -->
+
+<!-- ``` -->
+
+<!-- ## Barley Data -->
+<!-- #### 1. Data description: split-split-plot design. Whole-plot treatment factor is isolate with levels 5874 and K1. Split-plot treatment factor is genotype with levels Mla1, Mla6, and Mla13. Split-split-plot treatment factor is hours after inoculation with levels 0, 8, 16, 20, 24, and 32 -->
+
+<!-- #### 2. Goal -->
+<!-- There are 22792 genes in total. As a pre-processing step, to reduce dimention, we select genes whose variance on log scale is greater than 3, and we got 108 genes left.  -->
+
+<!-- All the analysis is on log(x+1) scale. -->
+
+<!-- Let treatment to be isolate 5874 and control to be K1.  -->
+
+<!-- By looking at the treatment score plot and control score plot, we found no separation between genotypes but separation between early stage and late stages. Both of the score plot shows similar pattern. This means for each treatment group, the main variation is the variation between time.  Since we can also see the separation between Mla6 and other two genotypes on the second PC in both score plots, the difference between Mla6 and other two genotypes are the second major variation. -->
+
+<!-- By contrastive PCA, we aim to contrast the time effect, we expect the separation of Mla6 and other two genotypes still exits and even more, the the separation between three genotypes on the first contrastive PC. -->
+
+<!-- We also present the result using ARI. the ARI using the first PC on treatment PCA for Time is 0.50643, and becomes  0.00134 using contrastive PC1. The ARI using treatment PC1 for Genotype is -0.01879 and becomes 1 using contrastive PC1. -->
+
+<!-- In addition, by checking the loading plot, we found the first eigenvectors for treatment PCA and control PCA are very similar in the sense that the non-zero loadings positions are approximately the same. The corresponding genes are the ones that associated with Time stage. In contrast, the non-zero elements position of the first contrastive eigenvector is different. And these genes are the ones that associated with Genotype. -->
+
+<!-- The difference between our example and previous cPCA examples is that our control groups is multi-level, containing all time points and all genotypes. -->
+
+<!-- ```{r Barley data read in, echo=TRUE, eval=TRUE} -->
+<!-- data <- read.table("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/Contrastive/Useful datasets/Barley-Bgh/E-MEXP-142-processed-data-1342049921.txt", header = TRUE, sep = "\t") -->
+<!-- meta <- read.table("/Users/yunhuiqi/Library/Mobile Documents/com~apple~CloudDocs/PhD/academic/Research/Contrastive/Useful datasets/Barley-Bgh/E-MEXP-142.sdrf.txt", header = TRUE, sep = "\t") -->
+
+<!-- dat <- data[,data[1,] == "Affymetrix:CHPSignal"] -->
+<!-- dat <- dat[2:22841,] -->
+<!-- dat <- lapply(dat, as.numeric) -->
+<!-- dat <- do.call(cbind, dat) -->
+<!-- genes <- data[2:22841,2] -->
+<!-- rownames(dat) <- genes -->
+<!-- colnames(dat) <- paste("sample",unique(sapply(colnames(dat), function(x){strsplit(x,"\\.")[[1]][3]}))) -->
+<!-- covariates <- data.frame(sample = paste("sample", sapply(meta$Scan.Name, function(x){strsplit(x, ":")[[1]][3]})), -->
+<!--                          Genotype = meta$Factor.Value..individual_genetic_characteristic., -->
+<!--                          Isolate = meta$Factor.Value..strain_or_line., -->
+<!--                          Time = paste("Time:",meta$Factor.Value..time.)) -->
+<!-- rownames(covariates) <- covariates$sample -->
+<!-- covariates_sub <- covariates[colnames(dat),] -->
+<!-- covariates_sub$GI <- paste(covariates_sub$Genotype, covariates_sub$Isolate) -->
+<!-- covariates_sub$GI <- ifelse(covariates_sub$GI %in% c("Mla13 5874", "Mla6 K1"), "Comp","Incomp") -->
+<!-- covariates_sub$Time[covariates_sub$Time == "Time: 8"] <- "Time: 10" -->
+<!-- covariates_sub$Time <- factor(covariates_sub$Time, levels = c("Time: 0","Time: 10","Time: 16","Time: 20","Time: 24","Time: 32")) -->
+<!-- covariates_sub$Time_bi <- NA -->
+<!-- covariates_sub$Time_bi[covariates_sub$Time %in% c("Time: 0","Time: 10")] <- "Early" -->
+<!-- covariates_sub$Time_bi[covariates_sub$Time %in% c("Time: 16","Time: 20")] <- "Middle" -->
+<!-- covariates_sub$Time_bi[covariates_sub$Time %in% c("Time: 24","Time: 32")] <- "Late" -->
+<!-- X <- log(t(dat)+1) -->
+
+<!-- DE_genes <- c("Contig11969_at", "Contig12219_at", "Contig15413_at", "Contig15515_at", "Contig15861_at", -->
+<!--               "Contig1271_x_at","Contig2168_s_at","Contig8605_s_at","HV_CEb0004O15r2_s_at",  -->
+<!--               "Contig24175_at","Contig4728_at","Contig5108_s_at","HY07P02u_at","HT09O03u_s_at", -->
+<!--               "Contig7815_s_at","Contig14426_at","Contig20247_at","Contig15798_at","Contig20747_at", -->
+<!--               "Contig7705_at","Contig20954_at","HI15L07r_s_at") -->
+<!-- X_DE <- X[,DE_genes] -->
+<!-- gene_means <- apply(X, 2, mean) -->
+<!-- gene_vars <- apply(X, 2, var) -->
+<!-- plot(gene_means, gene_vars) -->
+<!-- X_sub <- X[, gene_vars > 3] -->
+<!-- DE_genes %in% colnames(X_sub) -->
+<!-- ``` -->
+
+<!-- ```{r Barley data contrastive to find genotype (all three), echo=FALSE, eval=FALSE} -->
+<!-- trt <- covariates_sub$Isolate != "K1" -->
+<!-- Xt <- scale(X_sub[trt,], center = TRUE, scale = TRUE) -->
+<!-- Xc <- scale(X_sub[!trt,], center = TRUE, scale = TRUE) -->
+<!-- covariates_t <-  covariates_sub[trt,] -->
+<!-- covariates_c <- covariates_sub[!trt,] -->
+
+<!-- gamma <- 1 -->
+<!-- trt.cv <- SPC.cv(Xt, sumabsvs=seq(1.2, sqrt(ncol(Xt)), len=6), trace = FALSE) -->
+<!-- trt.spca <- SPC(Xt, sumabsv=trt.cv$bestsumabs, K=4, trace = FALSE)  -->
+<!-- ctrl.cv <- SPC.cv(Xc, sumabsvs=seq(1.2, sqrt(ncol(Xc)), len=6), trace = FALSE) -->
+<!-- ctrl.spca <- SPC(Xc, sumabsv=ctrl.cv$bestsumabs, K=4, trace = FALSE)  -->
+<!-- ctst.cv <- SPC.cv(cov(Xt)-gamma*cov(Xc), sumabsvs=seq(1.2, sqrt(ncol(Xt)), len=6), trace = FALSE) -->
+<!-- ctst.spca <- SPC(cov(Xt)-gamma*cov(Xc), sumabsv=ctst.cv$bestsumabs, K=4, trace = FALSE)  -->
+
+<!-- PCt <- Xt%*%trt.spca$v[,1:2] -->
+<!-- PCc <- Xc%*%ctrl.spca$v[,1:2] -->
+<!-- cPC <- Xt%*%ctst.spca$v[,1:2] -->
+<!-- Ut <- trt.spca$v -->
+<!-- Uc <- ctrl.spca$v -->
+<!-- cU <- ctst.spca$v -->
+
+<!-- plot_data <- data.frame(cPC1 = cPC[,1], cPC2 = cPC[,2], -->
+<!--                         PC1 = PCt[,1], PC2 = PCt[,2], -->
+<!--                         Genotype = covariates_sub$Genotype[trt], -->
+<!--                         Isolate = covariates_sub$Isolate[trt], -->
+<!--                         Time = ifelse(covariates_sub$Time[trt] %in% c("Time: 0","Time: 8"),"Early","Late")) -->
+
+<!-- cP <- ggplot(plot_data)+ -->
+<!--   geom_point(aes(x=cPC1, y=cPC2, color= Genotype, shape = Time))+ -->
+<!--   labs(title = "contrastive") -->
+<!-- Pt <- ggplot(plot_data)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color= Genotype, shape = Time ))+ -->
+<!--   labs(title = "treatment") -->
+<!-- Pc <- ggplot(data.frame(PC1 = PCc[,1], PC2 = PCc[,2],  -->
+<!--                         Genotype = covariates_sub$Genotype[!trt], -->
+<!--                         Time = ifelse(covariates_sub$Time[!trt] %in% c("Time: 0","Time: 8"),"Early","Late")))+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color= Genotype, shape = Time ))+ -->
+<!--   labs(title = "control") -->
+<!-- PUt1 <- ggplot(data.frame(index = 1:nrow(Ut), Ut1 = Ut[,1]))+ -->
+<!--   geom_point(aes(x=index, y=Ut1))+ -->
+<!--   ylim(-0.8,0.8)+ -->
+<!--   labs(title="trt PCA eigenvector 1") -->
+<!-- PcU1 <- ggplot(data.frame(index = 1:nrow(cU), cU1 = cU[,1]))+ -->
+<!--   geom_point(aes(x=index, y=cU1))+ -->
+<!--   ylim(-0.8,0.8)+ -->
+<!--   labs(title = "contrastive PCA eigenvector 1") -->
+<!-- PUc1 <- ggplot(data.frame(index = 1:nrow(Uc), Uc1 = Uc[,1]))+ -->
+<!--   geom_point(aes(x=index, y=Uc1))+ -->
+<!--   ylim(-0.8,0.8)+ -->
+<!--   labs(title = "control PCA eigenvector 1") -->
+<!-- print(ggarrange( Pc, Pt, cP, PUc1, PUt1, PcU1, nrow=2, ncol=3,  common.legend = TRUE)) -->
+
+
+<!-- paste("ARI for clusters and ", "Time", " variable in treamtnet is: ", round(spec_clust((plot_data$PC1), group =plot_data$Time), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Time", " variable in contrast is: ", round(spec_clust((plot_data$cPC1), group =plot_data$Time), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Genotype", " variable in treamtnet is: ", round(spec_clust((plot_data$PC1), group =plot_data$Genotype), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Genotype", " variable in contrast is: ", round(spec_clust((plot_data$cPC1), group =plot_data$Genotype), 5), sep = "") -->
+
+<!-- ``` -->
+
+
+<!-- The second case is to validate the first analysis in the paper but with more genes.  -->
+
+<!-- We select genes with variance greater than 3 on log scale. And also include the 22 significant genes into the analysis.  -->
+
+<!-- We exclude the samples with Mla1. -->
+
+<!-- Treatment group is the compatible combinations while the control group is the incompatible combinations.  -->
+
+<!-- Time is classified as Early (0, 8h), Middle (16, 20h) and Late (24, 32h) stages. -->
+
+<!-- Xt and Xc are scaled and centered separately. -->
+
+<!-- Treatment PCA & control PCA: it's obvious that samples at Early stage are different from those at other stages. It takes some time for the pathogen to take effect.  -->
+
+<!-- Contrastive PCA: from contrastive analysis, the first cPC can separate samples with different genotype Mla13 and Mla6 (which are also Isolate 5874 and K1). Interestingly, on the second cPC direction, we saw separation of Middle stage and Late Stage Mla6 samples, but mixture of Middle stage and Late stage Mla13 samples. This indicate some interaction effect between time and genotype/isolate. Notice that there are 31 genes have non-zero loadings on the second cPC. For these genes, compare to the incompatible combinations, the change of them in Mla6 samples starts at the begining of the Late stage, the change of them in Mla13 samples starts at the begining of the Middle stage. -->
+
+<!-- To confirm these findings, we extract the genes with non-zero contrastive PC loadings, and plot their expression averaged over replicates for each combination of compatibility, genotype and time. -->
+
+<!-- 1. From the heatmap of the first set of genes, it's obvious that their expression are very different in Mla6 samples and Mla13 samples, no matter in compatible combinations or incompatible combinations, or in any time stage. These genes cannot be found in treatment PCA analysis. Only after contrasting other variations (in contrastive analysis) can we found these genes. -->
+
+<!-- 2. From the heatmap of the second set of genes, for Mla6 samples, the incompatible ones experience a steady change of the expression from Early to Late stage (since the color becomes deeper at the beginning of the Middle and deeper at the beginning of the Late), while the compatible ones experiences a small change from Early to Middle but a relatively large change from Middle to Late. This mean, the difference between Late and Middle in compatible Mla6 samples is larger than the difference between Late and Middle in incompatible Mla6 samples. This difference is the enriched variation in compatible samples. By contrasting, this difference is extracted. The conclusion for Mla6 samples is that, the expression pattern of these selected genes is different when pathogen is applied (in compatible samples). Without pathgen, these genes will have a step wise change over time. With pathogen, the expression pattern at Middle stage is more close to Early stage. -->
+
+<!-- The contrary pattern can be seen for Mla13 samples. The expression of the selected genes in compatible samples at Early stage is obviously different from that in the Middle and Late stages compatible samples while the incompatible ones shows a steady increase (more continuous than in Mla6 compatible samples). Compared to the incompatible ones, the compatible ones in Early stage is far away from those in Middle and Late while the Middle ones are closer to Late ones.  The enriched variation in compatible samples then becomes the difference between Early and others and the similarity between Middle and Late. This is exactly what we saw on the second cPC for Mla13 samples. The conclusion for Mla13 samples is that, with pathogen, these expression of these genes experienced a dramatic change at the beginning the Middle stage and stays there until the end. Without pathogen, this change is much smaller and more steady.  -->
+
+<!-- Also, notice in the second set of selected genes, we found the 6 (index 1-5 and 17) in the DE set. The pattern we saw is consistent with the paper plot. Although different from their conclusion which is based on the genes 6 to 16.    -->
+
+<!-- ```{r Barley data contrastive to validate paper, echo = TRUE, eval=TRUE} -->
+<!-- X_sub2 <- cbind(X_sub, X_DE) -->
+<!-- trt <- covariates_sub$Time_bi=="Late" -->
+<!-- sel <- covariates_sub$Genotype != "Mla1" -->
+<!-- Xt <- scale(X_sub2[trt ,], center = TRUE, scale = TRUE) -->
+<!-- Xc <- scale(X_sub2[(!trt),], center = TRUE, scale = TRUE) -->
+<!-- covariates_t <-  covariates_sub[trt ,] -->
+<!-- covariates_c <- covariates_sub[(!trt),] -->
+
+
+<!-- eta_tuning_general(Xt, Xc) -->
+
+<!-- res <- cPCA(Xt, Xc, eta = 1, sparse_ctst = 0.2, sparse_trt = 0.2, sparse_ctrl = 0.2) -->
+
+<!-- PCt <- res$PCt[,1:2] -->
+<!-- PCc <- res$PCa[,1:2] -->
+<!-- cPC <- res$cPC[,1:2] -->
+
+<!-- gamma <- 1 -->
+<!-- trt.cv <- SPC.cv(Xt, sumabsvs=seq(1.2, sqrt(ncol(Xt)), len=6), trace = FALSE) -->
+<!-- trt.spca <- SPC(Xt, sumabsv=NULL, K=4, trace = FALSE)  -->
+<!-- ctrl.cv <- SPC.cv(Xc, sumabsvs=seq(1.2, sqrt(ncol(Xc)), len=6), trace = FALSE) -->
+<!-- ctrl.spca <- SPC(Xc, sumabsv=NULL, K=4, trace = FALSE)  -->
+<!-- ctst.cv <- SPC.cv(cov(Xt)-gamma*cov(Xc), sumabsvs=seq(1.2, sqrt(ncol(Xt)), len=6), trace = FALSE) -->
+<!-- ctst.spca <- SPC(cov(Xt)-gamma*cov(Xc), sumabsv=NULL, K=4, trace = FALSE)  -->
+
+<!-- PCt <- Xt%*%trt.spca$v[,1:2] -->
+<!-- PCc <- Xc%*%ctrl.spca$v[,1:2] -->
+<!-- cPC <- Xt%*%ctst.spca$v[,1:2] -->
+<!-- Ut <- trt.spca$v -->
+<!-- Uc <- ctrl.spca$v -->
+<!-- cU <- ctst.spca$v -->
+
+<!-- plot_data <- data.frame(cPC1 = cPC[,1], cPC2 = cPC[,2], -->
+<!--                         PC1 = PCt[,1], PC2 = PCt[,2], -->
+<!--                         Genotype = covariates_t$Genotype, -->
+<!--                         Isolate = covariates_t$Isolate, -->
+<!--                         Time = covariates_t$Time, -->
+<!--                         Time_bi = covariates_t$Time_bi) -->
+
+<!-- cP <- ggplot(plot_data)+ -->
+<!--   geom_point(aes(x=cPC1, y=cPC2, color= Isolate, shape = Genotype))+ -->
+<!--   labs(title = "contrastive") -->
+<!-- Pt <- ggplot(plot_data)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color= Isolate, shape = Genotype ))+ -->
+<!--   labs(title = "treatment") -->
+<!-- Pc <- ggplot(data.frame(PC1 = PCc[,1], PC2 = PCc[,2],  -->
+<!--                         Genotype = covariates_c$Genotype, -->
+<!--                         Isolate = covariates_c$Isolate, -->
+<!--                         Time = covariates_c$Time, -->
+<!--                         Time_bi = covariates_c$Time_bi))+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color= Isolate, shape = Genotype))+ -->
+<!--   labs(title = "control") -->
+<!-- PUt1 <- ggplot(data.frame(index = 1:nrow(Ut), Ut1 = Ut[,1]))+ -->
+<!--   geom_point(aes(x=index, y=Ut1))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title="trt PCA eigenvector 1") -->
+<!-- PcU1 <- ggplot(data.frame(index = 1:nrow(cU), cU1 = cU[,1]))+ -->
+<!--   geom_point(aes(x=index, y=cU1))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title = "contrastive PCA eigenvector 1") -->
+<!-- PUc1 <- ggplot(data.frame(index = 1:nrow(Uc), Uc1 = Uc[,1]))+ -->
+<!--   geom_point(aes(x=index, y=Uc1))+ -->
+<!--   ylim(-0.8,0.8)+ -->
+<!--   labs(title = "control PCA eigenvector 1") -->
+<!-- PUt2 <- ggplot(data.frame(index = 1:nrow(Ut), Ut2  = Ut[,2]))+ -->
+<!--   geom_point(aes(x=index, y=Ut2 ))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title="trt PCA eigenvector 2") -->
+<!-- PcU2 <- ggplot(data.frame(index = 1:nrow(cU), cU2 = cU[,2]))+ -->
+<!--   geom_point(aes(x=index, y=cU2))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title = "contrastive PCA eigenvector 2") -->
+<!-- PUc2 <- ggplot(data.frame(index = 1:nrow(Uc), Uc2 = Uc[,2]))+ -->
+<!--   geom_point(aes(x=index, y=Uc2))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title = "control PCA eigenvector 2") -->
+<!-- print(ggarrange(Pc, Pt, cP,  nrow=1, ncol=3,  common.legend = TRUE)) -->
+<!-- print(ggarrange(PUc1, PUt1, PcU1, PUc2, PUt2, PcU2, nrow=2, ncol=3,  common.legend = TRUE)) -->
+
+
+<!-- paste("ARI for clusters and ", "Time", " variable in treamtnet is: ", round(spec_clust((plot_data$PC1), group = plot_data$Time), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Time", " variable in contrast is: ", round(spec_clust((plot_data$cPC1), group = plot_data$Time), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Genotype", " variable in treamtnet is: ", round(spec_clust((plot_data$PC1), group = plot_data$Genotype), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Genotype", " variable in contrast is: ", round(spec_clust((plot_data$cPC1), group = plot_data$Genotype), 5), sep = "") -->
+
+<!-- cat("First contrastive selected genes \n") -->
+<!-- X_sel <- X_sub2[sel,c(colnames(X_sub2)[cU[,1]!=0])] -->
+<!-- covariates_sel <- covariates_sub[sel,] -->
+<!-- rownames(X_sel) <- paste(covariates_sel$GI, covariates_sel$Genotype, covariates_sel$Time) -->
+<!-- means <- aggregate(X_sel, by = list(Group = rownames(X_sel)), FUN = mean) -->
+<!-- rownames(means) <- means$Group -->
+<!-- heatmap(t(means[,2:ncol(means)]), Colv = NA, scale = "row") -->
+
+
+<!-- cat("Second contrastive selected genes \n") -->
+<!-- X_sel <- X_sub2[sel,c(colnames(X_sub2)[cU[,2]!=0])] -->
+<!-- covariates_sel <- covariates_sub[sel,] -->
+<!-- rownames(X_sel) <- paste(covariates_sel$GI, covariates_sel$Genotype, covariates_sel$Time) -->
+<!-- means <- aggregate(X_sel, by = list(Group = rownames(X_sel)), FUN = mean) -->
+<!-- rownames(means) <- means$Group -->
+<!-- cat("Heatmap of log data with group means on Mla6 \n") -->
+<!-- heatmap(t(means[sapply(rownames(means), function(x){grepl("Mla6", x)}),2:ncol(means)]), Colv = NA, scale = "row") -->
+<!-- cat("Heatmap of log data with group means on Mla13 \n") -->
+<!-- print(heatmap(t(means[sapply(rownames(means), function(x){grepl("Mla13", x)}),2:ncol(means)]), Colv = NA, scale = "row")) -->
+
+<!-- ``` -->
+
+<!-- The final case is to only use the 22 DE genes with treatment group being the compatible group and control group being the incompatible group. -->
+
+<!-- From the heatmap in the paper, the major difference between compatible samples and incompatible samples are that the expression of these genes in compatible samples are low in the Early stage, high in the Middle stage but becomes low again in the late stage, in incompatible samples are low in the Early stage, high in the Middle stage and keeps high in the late stage. This is consistent in different genotypes. So, compared to the incompatible samples, the the difference in the Middle and Late stage is the enriched variation in the compatible samples. So we expect to see the separation between compatible samples in Middle and Late stage to be much more clear in contrastive PC plot. -->
+
+<!-- We center the DE genes among all samples. No other pre-processing. -->
+
+<!-- And from both treatment and contrl PCA, the major variation is the difference between the Early stage and others. This is reasonable since the difference with or without pathogen is much larger than with pathogen but at different time. The first treatment PC and control PC can separate samples from Early stage and those at other time. This major variation dominants both of the treatment and control PCA, burying the difference between the Middle and Late stage in compatible samples. The clustering result validate this claim. Even with both PC, the ARI for clustering the time is 0.2. By contrasting, we see that the separation between samples at Middle and Late stages becomes much more clear. The ARI of clustering using both contrastive PCs are 0.46 which is more than two times of the ARI on treatment PC clustering.  -->
+
+<!-- ```{r Barley data contrastive on selected genes, echo = TRUE, eval=TRUE, fig.width=10, fig.height=4} -->
+<!-- X_sub <- scale(X_DE, center = TRUE, scale = FALSE) -->
+<!-- trt <- covariates_sub$GI == "Comp" -->
+<!-- sel <- covariates_sub$Genotype != "Mla1"  -->
+<!-- Xt <- scale(X_sub[trt & sel,], center = FALSE, scale = FALSE) -->
+<!-- Xc <- scale(X_sub[(!trt) & sel,], center = FALSE, scale = FALSE) -->
+<!-- covariates_t <-  covariates_sub[trt & sel,] -->
+<!-- covariates_c <- covariates_sub[(!trt) & sel,] -->
+
+<!-- gamma <- 1 -->
+<!-- trt.cv <- SPC.cv(Xt, sumabsvs=seq(1.2, sqrt(ncol(Xt)), len=6), trace = FALSE) -->
+<!-- trt.spca <- SPC(Xt, sumabsv=trt.cv$bestsumabs, K=9, trace = FALSE) -->
+<!-- ctrl.cv <- SPC.cv(Xc, sumabsvs=seq(1.2, sqrt(ncol(Xc)), len=6), trace = FALSE) -->
+<!-- ctrl.spca <- SPC(Xc, sumabsv=ctrl.cv$bestsumabs, K=9, trace = FALSE) -->
+<!-- ctst.cv <- SPC.cv(cov(Xt)-gamma*cov(Xc), sumabsvs=seq(1.2, sqrt(ncol(Xt)), len=6), trace = FALSE) -->
+<!-- ctst.spca <- SPC(cov(Xt)-gamma*cov(Xc), sumabsv=ctst.cv$bestsumabs, K=9, trace = FALSE) -->
+
+<!-- # trt.spca <- list(v=eigen(cov(Xt))$vectors) -->
+<!-- # ctrl.spca <- list(v=eigen(cov(Xc))$vectors) -->
+<!-- # ctst.spca <- list(v=eigen(cov(Xt)-gamma*cov(Xc))$vectors) -->
+
+<!-- PCt <- Xt%*%trt.spca$v[,1:2] -->
+<!-- PCc <- Xc%*%ctrl.spca$v[,1:2] -->
+<!-- cPC <- Xt%*%ctst.spca$v[,1:2] -->
+<!-- Ut <- trt.spca$v -->
+<!-- Uc <- ctrl.spca$v -->
+<!-- cU <- ctst.spca$v -->
+
+<!-- plot_data_t <- data.frame(cPC1 = cPC[,1], cPC2 = cPC[,2], -->
+<!--                         PC1 = PCt[,1], PC2 = PCt[,2], -->
+<!--                         Genotype = covariates_t$Genotype, -->
+<!--                         Isolate = covariates_t$Isolate, -->
+<!--                         GI = covariates_t$GI, -->
+<!--                         Time = covariates_t$Time, -->
+<!--                         Time_bi = covariates_t$Time_bi) -->
+
+<!-- plot_data_c <- data.frame(PC1 = PCc[,1], PC2 = PCc[,2],  -->
+<!--                         Genotype = covariates_c$Genotype, -->
+<!--                         GI = covariates_c$GI, -->
+<!--                         Isolate = covariates_c$Isolate, -->
+<!--                         Time = covariates_c$Time, -->
+<!--                         Time_bi = covariates_c$Time_bi) -->
+
+<!-- cP_time <- ggplot(plot_data_t)+ -->
+<!--   geom_point(aes(x=cPC1, y=cPC2, color= Time, shape = Genotype))+ -->
+<!--   labs(title = "contrastive")+ -->
+<!--   theme(legend.position = "top") -->
+<!-- cP_timebi <- ggplot(plot_data_t)+ -->
+<!--   geom_point(aes(x=cPC1, y=cPC2, color= Time_bi, shape = Genotype))+ -->
+<!--   labs(title = "contrastive")+ -->
+<!--   theme(legend.position = "top") -->
+<!-- Pt_time <- ggplot(plot_data_t)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color= Time, shape = Genotype))+ -->
+<!--   labs(title = "Compatible")+ -->
+<!--   theme(legend.position = "top") -->
+<!-- Pt_timebi <- ggplot(plot_data_t)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color= Time_bi, shape = Genotype))+ -->
+<!--   labs(title = "Compatible")+ -->
+<!--   theme(legend.position = "top") -->
+<!-- Pc_time <- ggplot(plot_data_c)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color= Time, shape = Genotype))+ -->
+<!--   labs(title = "Incompatible")+ -->
+<!--   theme(legend.position = "top") -->
+<!-- Pc_timebi <- ggplot(plot_data_c)+ -->
+<!--   geom_point(aes(x=PC1, y=PC2, color= Time_bi, shape = Genotype))+ -->
+<!--   labs(title = "Incompatible")+ -->
+<!--   theme(legend.position = "top") -->
+<!-- PUt1 <- ggplot(data.frame(index = 1:nrow(Ut), Ut1 = Ut[,1]))+ -->
+<!--   geom_point(aes(x=index, y=Ut1))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title="trt PCA eigenvector 1") -->
+<!-- PcU1 <- ggplot(data.frame(index = 1:nrow(cU), cU1 = cU[,1]))+ -->
+<!--   geom_point(aes(x=index, y=cU1))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title = "contrastive PCA eigenvector 1") -->
+<!-- PUc1 <- ggplot(data.frame(index = 1:nrow(Uc), Uc1 = Uc[,1]))+ -->
+<!--   geom_point(aes(x=index, y=Uc1))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title = "control PCA eigenvector 1") -->
+
+<!-- PUt2 <- ggplot(data.frame(index = 1:nrow(Ut), Ut2 = Ut[,2]))+ -->
+<!--   geom_point(aes(x=index, y=Ut2))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title="trt PCA eigenvector 2") -->
+<!-- PcU2 <- ggplot(data.frame(index = 1:nrow(cU), cU2 = cU[,2]))+ -->
+<!--   geom_point(aes(x=index, y=cU2))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title = "contrastive PCA eigenvector 2") -->
+<!-- PUc2 <- ggplot(data.frame(index = 1:nrow(Uc), Uc2 = Uc[,2]))+ -->
+<!--   geom_point(aes(x=index, y=Uc2))+ -->
+<!--   ylim(-1,1)+ -->
+<!--   labs(title = "control PCA eigenvector 2") -->
+<!-- print(ggarrange(Pc_time, Pt_time, cP_time,  nrow=1, ncol=3,  common.legend = T)) -->
+<!-- print(ggarrange(Pc_timebi, Pt_timebi, cP_timebi, nrow=1, ncol=3,  common.legend = T)) -->
+<!-- print(ggarrange(Pc_timebi+facet_wrap(vars(Time_bi)),  -->
+<!--                 Pt_timebi+facet_wrap(vars(Time_bi)),  -->
+<!--                 cP_timebi+facet_wrap(vars(Time_bi)), -->
+<!--                 nrow=1, ncol=3,  common.legend = T)) -->
+<!-- print(ggarrange(PUc1, PUt1, PcU1, PUc2, PUt2, PcU2, nrow=2, ncol=3,  common.legend = T)) -->
+
+
+<!-- paste("ARI for clusters and ", "Time", " variable in treamtnet is: ", round(spec_clust((plot_data_t[,c("PC1","PC2")]), group =plot_data_t$Time_bi), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Time", " variable in contrast is: ", round(spec_clust((plot_data_t[,c("cPC1","cPC2")]), group =plot_data_t$Time_bi), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Genotype", " variable in treamtnet is: ", round(spec_clust((plot_data_t[,c("PC1","PC2")]), group =plot_data_t$Genotype), 5), sep = "") -->
+<!-- paste("ARI for clusters and ", "Genotype", " variable in contrast is: ", round(spec_clust((plot_data_t[,c("cPC1","cPC2")]), group =plot_data_t$Genotype), 5), sep = "") -->
+
+<!-- ## Double check with paper -->
+<!-- X_sel <- X_sub[sel,] -->
+<!-- covariates_sel <- covariates_sub[sel,] -->
+<!-- rownames(X_sel) <- paste(covariates_sel$GI, covariates_sel$Genotype,  -->
+<!--                          covariates_sel$Time) -->
+<!-- means <- aggregate(X_sel, by = list(Group = rownames(X_sel)), FUN = mean) -->
+<!-- rownames(means) <- means$Group -->
+<!-- cat("Heatmap of log data with group means \n") -->
+<!-- heatmap(t(means[,2:ncol(X_sel)]), Colv = NA, Rowv = NA, scale = "row") -->
+
+
+<!-- cat("First contrastive selected genes \n") -->
+<!-- X_sel <- X_sub[sel,c(colnames(X_sub)[cU[,1]!=0])] -->
+<!-- covariates_sel <- covariates_sub[sel,] -->
+<!-- rownames(X_sel) <- paste(covariates_sel$GI, covariates_sel$Genotype, covariates_sel$Time) -->
+<!-- means <- aggregate(X_sel, by = list(Group = rownames(X_sel)), FUN = mean) -->
+<!-- rownames(means) <- means$Group -->
+<!-- heatmap(t(means[,2:ncol(means)]), Colv = NA, scale = "row") -->
+
+
+<!-- cat("Second contrastive selected genes \n") -->
+<!-- X_sel <- X_sub[sel,c(colnames(X_sub)[cU[,2]!=0])] -->
+<!-- covariates_sel <- covariates_sub[sel,] -->
+<!-- rownames(X_sel) <- paste(covariates_sel$GI, covariates_sel$Genotype, covariates_sel$Time) -->
+<!-- means <- aggregate(X_sel, by = list(Group = rownames(X_sel)), FUN = mean) -->
+<!-- rownames(means) <- means$Group -->
+<!-- heatmap(t(means[,2:ncol(means)]), Colv = NA, scale = "row") -->
+<!-- ``` -->
+

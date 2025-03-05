@@ -52,3 +52,15 @@
 
 "sim_data_CSC"
 
+
+#' @title Acute myelogenous leukemia single cell sequencing data
+#'
+#' @description scRNAseq for two healthy individuals (healthy 1 and 2), and two AML patients (AML027, 035) with top 1000 most variable genes. Pre-processing and gene selection is performed following Boileau 2020.
+#'
+#' @format A list containing four single cell experiments object (sce)
+#'
+#' @references Boileau P, Hejazi N S, Dudoit S. Exploring high-dimensional biological data with sparse contrastive principal component analysis[J]. Bioinformatics, 2020, 36(11): 3422-3430. Zheng G X Y, Terry J M, Belgrader P, et al. Massively parallel digital transcriptional profiling of single cells[J]. Nature communications, 2017, 8(1): 14049.
+#' @keywords leukemia
+
+"leukemia"
+
