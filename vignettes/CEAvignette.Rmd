@@ -92,6 +92,44 @@ print(p_eta)
 # ggsave("../inst/SavedFigures/sim_etaTuningEg.pdf", 
 #        plot = ggarrange(p_tuning, p_eta, ncol = 2, widths = c(1,1.6), labels = "AUTO"), 
 #        width = 12, height = 6, units = "in")
+
+
+## split the figures into main figure and supp figure
+p_eta_main <- ggplot(meta_all[meta_all$eta %in% c("eta==0","eta==1.6"),])+
+    geom_point(aes(x = cPC1, y = cPC2, color = interesting, shape = nuisance))+
+    facet_wrap(vars(eta), labeller = label_parsed, scales= "free")+
+    theme_bw()+
+    scale_color_aaas()+
+    scale_shape_manual(values = c(1, 15))+
+    theme(
+        strip.background = element_rect(fill = "lightblue", color = "black"),
+        strip.text = element_text(color = "black", face = "bold", size = 14),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),   # Adjust axis text size
+        legend.position = "bottom")
+print(p_eta_main)
+
+p_eta_supp <- ggplot(meta_all[!(meta_all$eta %in% c("eta==0","eta==1.6")),])+
+    geom_point(aes(x = cPC1, y = cPC2, color = interesting, shape = nuisance))+
+    facet_wrap(vars(eta), labeller = label_parsed, scales= "free")+
+    theme_bw()+
+    scale_color_aaas()+
+    scale_shape_manual(values = c(1, 15))+
+    theme(
+        strip.background = element_rect(fill = "lightblue", color = "black"),
+        strip.text = element_text(color = "black", face = "bold", size = 14),
+        text = element_text(size = 14),  # Adjust text size
+        axis.title = element_text(size = 16),  # Adjust axis title size
+        axis.text = element_text(size = 12),   # Adjust axis text size
+        legend.position = "bottom")
+print(p_eta_supp)
+# ggsave("../inst/SavedFigures/sim_etaTuningEg_Main.pdf",
+#        plot = ggarrange(p_tuning+xlim(0,3), p_eta_main, ncol = 2, widths = c(1,1.6), 
+#        labels ="AUTO"), width = 12, height = 4.5, units = "in")
+# ggsave("../inst/SavedFigures/sim_etaTuningEg_Supp.pdf",
+#        plot = ggarrange(p_tuning, p_eta_supp, ncol = 2, widths = c(1,1.6), 
+#        labels ="AUTO"), width = 12, height = 4.5, units = "in")
 ```
 
 ## 2. Simulation for contrastive spectral clustering, generating Table 2 
